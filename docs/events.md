@@ -94,6 +94,12 @@ The SDK holds the `anonymousId` for you — minted on first use and kept in `loc
 browser half of the identity flow described above; the .NET example reads the same id out of the
 `zl_anon` cookie when your server does the linking instead.
 
+Browser events get their `requestId` from `instrumentFetch()`: from 0.4.1, `track()` carries the
+trace id of the most recent instrumented request (within `requestCorrelationTtlMs`, default 5 s),
+so the event page can show that request's logs and traces. Pass `{ requestId }` as the third
+argument to pin an event to a specific request; without `instrumentFetch()` and without an explicit
+id, browser events have no `requestId` and the correlation panel stays empty.
+
 ## HTTP API
 
 Anything that can POST JSON can send events. Same authentication as log ingestion

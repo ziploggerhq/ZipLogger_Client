@@ -48,6 +48,29 @@ attribution rather than an error.
 
 Every event carries an `insertId`, so a retry after a timeout cannot count it twice.
 
+### Linking events to requests
+
+With `instrumentFetch()` on, every same-origin request (and any origin in `propagateTo`) carries
+a W3C `traceparent` header, and the event you track right after it carries that request's trace
+id as `requestId`. ZipLogger then shows the logs and traces of the request the event happened in
+("Requests sampled", "Errors on these requests" on the event page).
+
+```js
+ziplogger.instrumentFetch({ propagateTo: ['https://api.example.com'] })
+
+const res = await fetch('/api/checkout', { method: 'POST', body })
+ziplogger.track('checkout_completed', { amount: 99 })   // requestId = that request's trace id
+```
+
+Inference uses the most recent instrumented fetch within `requestCorrelationTtlMs` (default 5 s,
+a constructor option; 0 disables it). An event with no recent request carries no `requestId` —
+one is never invented. To pin an event to a specific request yourself, pass its trace id (or the
+full `traceparent` value) explicitly; it wins over the inferred one:
+
+```js
+ziplogger.track('checkout_completed', { amount: 99 }, { requestId: traceId })
+```
+
 **Do not put credentials in properties.** Values that look like tokens, keys or card numbers are
 redacted server-side, but the safe habit is not to send them.
 

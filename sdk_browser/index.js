@@ -45,6 +45,13 @@ export class ZipLoggerBrowser {
     this._flushInterval = options.flushIntervalMs ?? 3_000
     this._maxRetries = options.maxRetries ?? 2
     this._retryBaseDelay = options.retryBaseDelayMs ?? 500
+    // How long after an instrumented fetch a tracked event still counts as "happened inside
+    // that request". Long enough for "call the API, then track the result"; short enough that an
+    // event a minute later is not pinned to a stale trace. 0 disables inference.
+    this._requestCorrelationTtl = options.requestCorrelationTtlMs ?? 5_000
+    // The most recent instrumented fetch: { traceId, at }. Single source of truth for event ↔
+    // request correlation; written by instrumentFetch, read by track.
+    this._lastRequest = null
 
     this.dropped = 0
     this._queue = []
@@ -125,13 +132,23 @@ export class ZipLoggerBrowser {
    * things people did, and they answer different questions in different places in ZipLogger.
    * Never blocks, never throws.
    *
+   * The event is linked to the request it happened in through `requestId`, which ZipLogger
+   * correlates with logs and traces carrying the same trace id. With `instrumentFetch()` active,
+   * the trace id of the most recent instrumented request (within `requestCorrelationTtlMs`,
+   * default 5 s) is attached automatically; `options.requestId` overrides that. Events with no
+   * recent request carry no `requestId` — one is never invented.
+   *
    * @param {string} name Event name, e.g. "checkout_started". Lower-cased server-side.
    * @param {Record<string, unknown>} [properties] Your own properties. Values that look like
    *   credentials are redacted server-side; do not send passwords, tokens or card numbers.
+   * @param {import('./index').TrackOptions} [options]
    */
-  track(name, properties) {
+  track(name, properties, options) {
     if (!name || typeof name !== 'string') return
     if (this._events.length >= this._queueCapacity) { this.dropped++; return }
+
+    const explicit = options && typeof options === 'object' ? options.requestId : undefined
+    const requestId = typeof explicit === 'string' && explicit.length > 0 ? explicit : this._recentRequestId()
 
     const event = {
       type: 'track',
@@ -140,6 +157,7 @@ export class ZipLoggerBrowser {
       userId: this._userId ?? undefined,
       anonymousId: this._anonymousId ?? undefined,
       sessionId: this._sessionId ?? undefined,
+      requestId,
       environment: this._environment,
       release: this._release,
       commitSha: this._commitSha,
@@ -203,6 +221,13 @@ export class ZipLoggerBrowser {
     return { userId: this._userId, anonymousId: this._anonymousId, sessionId: this._sessionId }
   }
 
+  /** The trace id of the latest instrumented fetch, if it is still inside the correlation window. */
+  _recentRequestId() {
+    const last = this._lastRequest
+    if (!last || this._requestCorrelationTtl <= 0) return undefined
+    return Date.now() - last.at <= this._requestCorrelationTtl ? last.traceId : undefined
+  }
+
   /**
    * Start capturing window `error` and `unhandledrejection` events.
    * Returns a function that stops capturing.
@@ -247,6 +272,9 @@ export class ZipLoggerBrowser {
    * prefixes, e.g. ["https://api.mycompany.com"]) for cross-origin APIs you control — those
    * servers must allow the `traceparent` header in CORS. Returns a function that stops
    * instrumenting.
+   *
+   * Each instrumented request's trace id is also remembered as the most recent request, so a
+   * `track()` call shortly after it carries that id as `requestId` (see `track`).
    *
    * @param {{ propagateTo?: string[], logFailures?: boolean }} [options]
    */
@@ -301,6 +329,9 @@ export class ZipLoggerBrowser {
       const spanId = randomHex(8)
       const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
       headers.set('traceparent', `00-${traceId}-${spanId}-01`)
+      // The trace id is established here, before the request leaves; record it so events tracked
+      // in the next few seconds link to this request. Concurrent fetches: the latest started wins.
+      self._lastRequest = { traceId, at: Date.now() }
 
       const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
       const path = String(url).replace(/^https?:\/\/[^/]+/, '') || '/'

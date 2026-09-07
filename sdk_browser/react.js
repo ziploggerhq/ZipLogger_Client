@@ -56,7 +56,7 @@ export function createUseZipLogger(React, client) {
     return React.useMemo(() => ({
       captureError: (error, fields) => client.captureError(error, fields),
       log: (entry) => client.log(entry),
-      track: (name, properties) => client.track(name, properties),
+      track: (name, properties, options) => client.track(name, properties, options),
       identify: (userId, properties) => client.identify(userId, properties),
     }), [])
   }

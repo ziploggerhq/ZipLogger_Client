@@ -31,6 +31,20 @@ export interface BrowserOptions {
   /** Retry attempts per batch. Default 2 (browsers should not hammer). */
   maxRetries?: number
   retryBaseDelayMs?: number
+  /**
+   * How long after an instrumented fetch a `track()` call still inherits its trace id as
+   * `requestId`. Default 5000. 0 disables automatic correlation (explicit `requestId` still works).
+   */
+  requestCorrelationTtlMs?: number
+}
+
+export interface TrackOptions {
+  /**
+   * The request this event happened in: a W3C trace id (32 lowercase hex) or a full `traceparent`
+   * value. Overrides the id inferred from the most recent instrumented fetch. ZipLogger uses it to
+   * correlate the event with the logs and traces of that request.
+   */
+  requestId?: string
 }
 
 export interface BrowserLogEntry {
@@ -72,8 +86,12 @@ export declare class ZipLoggerBrowser {
    *
    * Values that look like credentials are redacted server-side; do not send passwords, tokens or
    * card numbers as properties.
+   *
+   * With `instrumentFetch()` active, the event carries the trace id of the most recent instrumented
+   * request (within `requestCorrelationTtlMs`) as `requestId`, so ZipLogger can show the logs and
+   * traces of the request the event happened in. Pass `options.requestId` to set it explicitly.
    */
-  track(name: string, properties?: Record<string, unknown>): void
+  track(name: string, properties?: Record<string, unknown>, options?: TrackOptions): void
   /**
    * Attach this browser's anonymous history to a real account and use that id from now on.
    * Call once after sign-in; the server links the ids so pre-login events stop being a separate
@@ -85,7 +103,8 @@ export declare class ZipLoggerBrowser {
   /**
    * Wraps window.fetch: adds a W3C traceparent header to same-origin requests (plus any
    * origins in propagateTo) so browser calls and backend traces share one trace id, and
-   * logs failed requests (HTTP >= 400 / network errors) with that trace id.
+   * logs failed requests (HTTP >= 400 / network errors) with that trace id. Each instrumented
+   * request also becomes the "most recent request" that a following `track()` links to.
    */
   instrumentFetch(options?: {
     propagateTo?: string[]
@@ -119,6 +138,6 @@ export declare function createUseZipLogger(
 ): () => {
   captureError: (error: unknown, fields?: Record<string, unknown>) => void
   log: (entry: BrowserLogEntry) => void
-  track: (name: string, properties?: Record<string, unknown>) => void
+  track: (name: string, properties?: Record<string, unknown>, options?: TrackOptions) => void
   identify: (userId: string, properties?: Record<string, unknown>) => void
 }
