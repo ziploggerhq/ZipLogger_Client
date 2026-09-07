@@ -163,6 +163,63 @@ Every release observed for the workspace, registered automatically at ingestion,
 to 200): `source`, `name`, `commitSha`, `firstSeenAt`, `lastSeenAt`. `firstSeenAt` is effectively
 the deploy time, which makes this the cheapest way to correlate an error spike with a rollout.
 
+## Events
+
+Product-analytics events share the same auth. Every query below accepts the same filters:
+`from`/`to` (at most 31 days), `name`, `service`, `environment`, `release`, `country`,
+`deviceType`, `browser`, `os`, `userId`, `cohort`, repeated `prop=key:op:value`
+(`eq neq contains startsWith endsWith gt gte lt lte`) and repeated `excludeEvent=`.
+
+### Search
+
+```bash
+curl -s "https://app.ziplogger.ai/api/v1/events/?name=order_placed&prop=plan:eq:pro&size=100" \
+  -H "Authorization: Bearer $TOKEN"
+# { "total": 1287, "hits": [ ... ], "nextAfter": "..." }   -- pass nextAfter back as `after` to page
+```
+
+### Property schema
+
+Every custom property the workspace has ever sent, with the type the index inferred. Read from
+the mapping, so it is complete and cheap.
+
+```bash
+curl -s https://app.ziplogger.ai/api/v1/events/properties/keys -H "Authorization: Bearer $TOKEN"
+# [ { "key": "beta", "type": "boolean" }, { "key": "plan", "type": "string" }, { "key": "seats", "type": "number" } ]
+```
+
+`type` is `string`, `number`, `boolean`, `date`, `mixed` (sent as different types on different
+days — showable, not aggregatable) or `other`. A nested object or array is stored as one JSON
+string and listed as a `string` property; send dimensions flat (`cartTotal: 12`, not
+`cart: { total: 12 }`) if you want to filter or aggregate on them.
+
+### Property values
+
+Top values of one property under the current filters, for building a filter UI.
+
+```bash
+curl -s "https://app.ziplogger.ai/api/v1/events/properties/values?property=plan&size=20&from=2026-08-01T00:00:00Z" \
+  -H "Authorization: Bearer $TOKEN"
+# { "field": "plan", "buckets": [ { "key": "pro", "count": 812 }, { "key": "free", "count": 475 } ] }
+```
+
+A `mixed` property, or a string without a keyword sub-field, answers 400 with the reason.
+
+### Export
+
+The result set as CSV, with exactly the columns named, in that order. Columns are any built-in
+field (`name timestamp userId anonymousId sessionId requestId service environment release
+commitSha url page country region city deviceType browser os id`) or `properties.<key>`.
+
+```bash
+curl -s "https://app.ziplogger.ai/api/v1/events/export.csv?columns=timestamp,name,userId,properties.plan&name=order_placed" \
+  -H "Authorization: Bearer $TOKEN" -o events.csv
+```
+
+Capped at 10,000 rows and 40 columns. Values that a spreadsheet would execute as a formula
+(`=`, `+`, `-`, `@` prefixes) are neutralised with a leading apostrophe; plain numbers are left
+alone.
+
 ## Other endpoint groups
 
 `/api/v1/dashboards`, `/api/v1/alerts`, `/api/v1/regressions`, and `/api/v1/billing` follow the
