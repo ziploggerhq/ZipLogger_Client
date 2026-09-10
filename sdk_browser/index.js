@@ -71,6 +71,23 @@ export class ZipLoggerBrowser {
     this._anonymousId = options.anonymousId ?? this._persistedId('local', 'zl_anon', 'anon')
     this._sessionId = options.sessionId ?? this._persistedId('session', 'zl_sess', 'sess')
 
+    // Session Replay lives in its own entry (`@ziplogger/browser/replay`) so this file stays free
+    // of rrweb. The options are kept here for it; until attachSessionReplay() runs, the controller
+    // is inert and says so once if asked to start.
+    this._replayOptions = options.sessionReplay ?? null
+    this.sessionReplay = {
+      start: () => {
+        if (this._replayOptions && typeof console !== 'undefined' && !this._replayHinted) {
+          this._replayHinted = true
+          console.warn('ZipLogger: sessionReplay is configured but not attached. '
+            + "import { attachSessionReplay } from '@ziplogger/browser/replay' and call attachSessionReplay(client).")
+        }
+        return Promise.resolve()
+      },
+      stop: () => Promise.resolve(),
+      isRecording: () => false,
+    }
+
     if (HAS_WINDOW) {
       const onHide = () => { void this.flush(true) }
       window.addEventListener('pagehide', onHide)

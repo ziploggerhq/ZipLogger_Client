@@ -102,6 +102,33 @@ Render errors ship with the component stack; the factory pattern (`createErrorBo
 keeps this package free of a React dependency, so it works with any React ≥ 16.8 — and the core
 client works with Vue, Svelte, Angular, or no framework at all.
 
+## Session replay
+
+```bash
+npm install @rrweb/record        # optional peer dependency; only if you want replay
+```
+
+```js
+import { attachSessionReplay } from '@ziplogger/browser/replay'
+
+const ziplogger = new ZipLoggerBrowser({
+  endpoint: 'https://app.ziplogger.ai',
+  apiKey: 'zk_...',
+  sessionReplay: { enabled: true, sampleRate: 0.1 },   // record 10% of sessions
+})
+attachSessionReplay(ziplogger)
+
+ziplogger.sessionReplay.isRecording()
+```
+
+Records the DOM, not video, and attaches to the same session id your events and errors carry.
+Passwords, payment fields and one-time codes are always masked, every other input is masked by
+default, and `data-ziplogger-mask` / `data-ziplogger-ignore` mark up anything else — in the
+browser, before it is sent. The recorder is loaded only for visitors who are sampled in: a page
+that does not record replays ships the same bytes it always did.
+
+See [docs/session-replay.md](https://github.com/ziploggerhq/ZipLogger_Client/blob/main/docs/session-replay.md).
+
 ## Notes
 
 - Browser API keys are visible to users by design (like every client-side telemetry key). Use a

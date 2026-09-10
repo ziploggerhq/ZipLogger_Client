@@ -1,7 +1,7 @@
 {
   "name": "@ziplogger/browser",
-  "version": "0.4.1",
-  "description": "ZipLogger browser SDK \u2014 product-analytics events, console errors, unhandled rejections and distributed tracing from web apps, with a React error boundary. Zero dependencies.",
+  "version": "0.5.0",
+  "description": "ZipLogger browser SDK \u2014 product-analytics events, console errors, unhandled rejections, distributed tracing and session replay from web apps, with a React error boundary. Zero dependencies.",
   "license": "MIT",
   "type": "module",
   "main": "index.js",
@@ -14,11 +14,23 @@
     "./react": {
       "types": "./index.d.ts",
       "default": "./react.js"
+    },
+    "./replay": {
+      "types": "./index.d.ts",
+      "default": "./replay.js"
     }
   },
   "sideEffects": false,
   "scripts": {
-    "test": "node --test test/client.test.mjs test/tracing.test.mjs"
+    "test": "node --test test/client.test.mjs test/tracing.test.mjs test/replay.test.mjs"
+  },
+  "peerDependencies": {
+    "@rrweb/record": "^2.1.4"
+  },
+  "peerDependenciesMeta": {
+    "@rrweb/record": {
+      "optional": true
+    }
   },
   "keywords": [
     "ziplogger",
@@ -28,7 +40,9 @@
     "browser",
     "react",
     "error-tracking",
-    "opentelemetry"
+    "opentelemetry",
+    "session-replay",
+    "rrweb"
   ],
   "repository": {
     "type": "git",
@@ -44,6 +58,7 @@
     "README.md",
     "index.d.ts",
     "index.js",
-    "react.js"
+    "react.js",
+    "replay.js"
   ]
 }

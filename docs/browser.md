@@ -92,6 +92,35 @@ Property values that look like credentials — tokens, keys, card numbers — ar
 server-side, but the safe habit is not to send them. Event properties are visible to everyone on
 your team with access to the Events page.
 
+## Session replay
+
+Watch what a user did before an error — the pages, the cursor, the clicks, which field they
+struggled with — rebuilt from the DOM rather than recorded as video.
+
+```bash
+npm install @rrweb/record        # optional peer dependency; only for replay
+```
+
+```js
+import { attachSessionReplay } from '@ziplogger/browser/replay'
+
+const ziplogger = new ZipLoggerBrowser({
+  endpoint: 'https://app.ziplogger.ai',
+  apiKey: 'zk_...',
+  sessionReplay: { enabled: true, sampleRate: 0.1 },
+})
+attachSessionReplay(ziplogger)
+```
+
+Passwords, payment fields and one-time codes are always masked; every other input is masked by
+default. `data-ziplogger-mask` masks an element's text and `data-ziplogger-ignore` leaves a subtree
+out of the recording entirely — all of it applied in the browser, before anything is sent. The
+recorder is fetched only for visitors who are actually sampled in, so a page that does not record
+adds nothing but 2.8 KB gzipped.
+
+Full guide, including the privacy rules, sampling, retention and the measured cost:
+**[Session replay](session-replay.md)**.
+
 ## Frontend-to-backend tracing
 
 The single most useful call in this SDK, and the one people miss:

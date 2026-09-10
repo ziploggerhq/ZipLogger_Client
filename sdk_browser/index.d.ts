@@ -1,5 +1,61 @@
 export type Severity = 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
+/**
+ * Session Replay options. Nothing here records anything by itself: the recorder lives in the
+ * separate `@ziplogger/browser/replay` entry and only runs after `attachSessionReplay(client)`.
+ * The server's answer (plan, workspace settings, platform kill switch) is checked before a
+ * single event is captured, and its sample rate, when set, overrides `sampleRate` below.
+ */
+export interface SessionReplayOptions {
+  /** Record this app's sessions. Default false. */
+  enabled?: boolean
+  /**
+   * Share of sessions to record, 0..1, decided once per session (deterministic on the session
+   * id, so a reload keeps the same decision). Default 1. A rate set in ZipLogger → Settings →
+   * Session replay wins over this value.
+   */
+  sampleRate?: number
+  /**
+   * Replace every input and textarea value with asterisks of the same length. Default true.
+   * Passwords, one-time codes and payment fields are masked even when this is false.
+   */
+  maskInputs?: boolean
+  /** Mask every text node on the page. For pages that render personal data as plain text. Default false. */
+  maskAllText?: boolean
+  /** Extra CSS selector whose text is masked, on top of `[data-ziplogger-mask]`. */
+  maskSelector?: string | null
+  /** Extra CSS selector whose subtree is not recorded at all, on top of `[data-ziplogger-ignore]`. */
+  blockSelector?: string | null
+  /** Record canvas contents as images. Costly; default false. */
+  recordCanvas?: boolean
+  /** Stop recording after this many seconds. Default 3600, never more than the server allows. */
+  maxSessionSeconds?: number
+  /** Stop recording once this many uncompressed bytes have been produced. Default 50 MB. */
+  maxSessionBytes?: number
+  /** Linger before uploading a partial chunk. Default 5000; the server may lower it. */
+  flushIntervalMs?: number
+  /** Upload once this many events are buffered. Default 100. */
+  flushEvents?: number
+  /** Upload once the buffered events reach this many bytes. Default 256 KB. */
+  flushBytes?: number
+  /** Chunks waiting to upload before recording stops for the session. Default 8. */
+  maxPendingChunks?: number
+}
+
+export interface SessionReplayController {
+  /** Start recording this session if the server and the sampling decision allow it. Idempotent. */
+  start(): Promise<void>
+  /** Stop recording and send what is buffered as the final chunk. */
+  stop(): Promise<void>
+  isRecording(): boolean
+  /** Events lost to upload failures or backlog. */
+  readonly dropped: number
+  /** Why recording is not happening, when it is not: `not_sampled`, `disabled`, `unreachable`, `stopped`, … */
+  readonly lastReason: string | null
+  /** The server's answer to the last configuration request, for debugging. */
+  readonly serverConfig: Record<string, unknown> | null
+}
+
 export interface BrowserOptions {
   /** Your ZipLogger origin, e.g. "https://app.ziplogger.ai" (or your own host if
    *  you self-host). Paths are appended for you. */
@@ -36,6 +92,11 @@ export interface BrowserOptions {
    * `requestId`. Default 5000. 0 disables automatic correlation (explicit `requestId` still works).
    */
   requestCorrelationTtlMs?: number
+  /**
+   * Session Replay. Takes effect only after `attachSessionReplay(client)` from
+   * `@ziplogger/browser/replay`; without that import nothing about replay is loaded or sent.
+   */
+  sessionReplay?: SessionReplayOptions
 }
 
 export interface TrackOptions {
@@ -72,6 +133,11 @@ export declare class ZipLoggerBrowser {
   dropped: number
   /** The ids events are currently attributed to. */
   readonly identity: Identity
+  /**
+   * Session Replay controls. Inert until `attachSessionReplay(client)` from
+   * `@ziplogger/browser/replay` has run; after that, the live controller.
+   */
+  sessionReplay: SessionReplayController
   /** Queue an event for background delivery. Never blocks, never throws. */
   log(entry: BrowserLogEntry): void
   /** Report a caught error with optional context fields. */
@@ -141,3 +207,28 @@ export declare function createUseZipLogger(
   track: (name: string, properties?: Record<string, unknown>, options?: TrackOptions) => void
   identify: (userId: string, properties?: Record<string, unknown>) => void
 }
+
+// ./replay
+/** Test seams. Production code passes none of these. */
+export interface SessionReplayDependencies {
+  /** Provides rrweb's `record`. Default: `import('@rrweb/record')`. */
+  loadRecorder?: () => Promise<(options: Record<string, unknown>) => (() => void) | undefined>
+  fetch?: typeof fetch
+  /** gzip a chunk body. `null` sends plain JSON. Default: the browser's CompressionStream. */
+  compress?: ((text: string) => Promise<Uint8Array | string>) | null
+  now?: () => number
+}
+/**
+ * Wire Session Replay into a client: replaces the inert `client.sessionReplay` with a live
+ * controller and starts it when `sessionReplay.enabled` is set. `@rrweb/record` must be
+ * installed alongside this package; it is loaded on demand, only for sampled sessions.
+ */
+export declare function attachSessionReplay(
+  client: ZipLoggerBrowser,
+  deps?: SessionReplayDependencies,
+): SessionReplayController
+/** True when a session with this id is recorded at the given rate. Deterministic. */
+export declare function sampledIn(sessionId: string, rate: number): boolean
+export declare const REPLAY_SDK_VERSION: string
+export declare const ALWAYS_MASK_SELECTORS: readonly string[]
+export declare const ALWAYS_BLOCK_SELECTORS: readonly string[]

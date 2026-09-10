@@ -39,7 +39,7 @@ Your log is searchable within seconds.
 | [Java](docs/java.md): JDK-only client plus `java.util.logging` handler | `dev.ziplogger:ziplogger` (Maven) |
 | [Ruby](docs/ruby.md): `::Logger` subclass plus core client, Rails and Sidekiq recipes | `ziplogger` (RubyGems) |
 | [PHP](docs/php.md): Monolog handler (Laravel, Symfony), PSR-3 logger, core client | `ziplogger/ziplogger` (Composer) |
-| [Browser / React](docs/browser.md): error capture, React error boundary, fetch tracing | `@ziplogger/browser` (npm) |
+| [Browser / React](docs/browser.md): error capture, React error boundary, fetch tracing, session replay | `@ziplogger/browser` (npm) |
 | [OpenTelemetry](docs/opentelemetry.md): native OTLP/HTTP logs receiver | any OTel SDK or Collector |
 | [Fluent Bit / Vector](docs/shippers.md): ship logs from apps you cannot modify | any shipper |
 | [HTTP ingestion API](docs/http-api.md): raw log ingestion reference | anything that can POST JSON |
@@ -50,6 +50,7 @@ Your log is searchable within seconds.
 |---|---|
 | [Distributed tracing](docs/tracing.md) | OTLP/HTTP `/v1/traces`, span mapping, browser-to-backend traces, trace/log correlation |
 | [Product analytics (Events)](docs/events.md) | `Track()`/`Identify()`, sessions, the `/ingest/v1/events` endpoint, and error-to-journey correlation |
+| [Session replay](docs/session-replay.md) | Watch what a user did before an error: DOM recording, masking rules, sampling, retention, and what it costs the page |
 | [Migrate from Mixpanel](docs/migrate-from-mixpanel.md) | Point an existing Mixpanel SDK at ZipLogger: endpoint, token, identity mapping, historical import |
 | [Request metrics (APM)](docs/metrics.md) | ASP.NET Core middleware, custom metrics, and the `/ingest/v1/metrics` endpoint for any stack |
 | [MCP server](docs/mcp.md) | Query your workspace from Claude Code, Cursor, or any MCP client |
