@@ -5,6 +5,8 @@ name: Publish SDKs
 #   npm-v0.3.3        -> npm only          (ziplogger + @ziplogger/browser)
 #   pypi-v0.3.3       -> PyPI only         (ziplogger)
 #   maven-v0.3.3      -> Maven Central only (dev.ziplogger:ziplogger)
+#   gem-v0.4.0        -> RubyGems only      (ziplogger)
+#   packagist-v0.4.0  -> PHP only; nothing to upload, Packagist reads the tag from this repo
 #   sdk_go/v0.3.3     -> Go module tag; nothing to publish, the proxy reads the repo
 #
 # Secrets required (repository settings -> Secrets and variables -> Actions):
@@ -13,11 +15,12 @@ name: Publish SDKs
 #   MAVEN_CENTRAL_PASSWORD Sonatype Central portal token password
 #   MAVEN_GPG_KEY          ASCII-armored private GPG key (Central requires signed artifacts)
 #   MAVEN_GPG_PASSPHRASE   passphrase for that key
-# PyPI uses Trusted Publishing (OIDC), so it needs no secret at all.
+# PyPI and RubyGems both use Trusted Publishing (OIDC), so neither needs a secret.
+# Packagist stores nothing here either: it indexes sdk_php/composer.json straight from this repo.
 
 on:
   push:
-    tags: ['v*', 'npm-v*', 'pypi-v*', 'maven-v*', 'sdk_go/v*']
+    tags: ['v*', 'npm-v*', 'pypi-v*', 'maven-v*', 'gem-v*', 'sdk_go/v*', 'packagist-v*']
   workflow_dispatch:
 
 jobs:
@@ -72,6 +75,28 @@ jobs:
         with:
           packages-dir: sdk_python/dist
 
+
+  rubygems:
+    if: startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'gem-v')
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      id-token: write   # Trusted Publishing: no API key needed
+      contents: write   # required by rubygems/release-gem (it configures git for the release task)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: sdk_ruby
+      - name: Test
+        working-directory: sdk_ruby
+        run: bundle exec rake test
+      - uses: rubygems/release-gem@v1
+        with:
+          working-directory: sdk_ruby
+
   maven:
     if: startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'maven-v')
     runs-on: ubuntu-latest
@@ -110,3 +135,25 @@ jobs:
         run: |
           go vet ./...
           go test ./...
+
+  php:
+    # Nothing to upload: Packagist reads sdk_php/composer.json from this repo on every tag via
+    # the GitHub webhook. This job proves the tagged commit installs and passes its tests.
+    if: startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'packagist-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, json
+          coverage: none
+      - name: Install
+        working-directory: sdk_php
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Test
+        working-directory: sdk_php
+        run: vendor/bin/phpunit
+      - name: Validate composer.json
+        working-directory: sdk_php
+        run: composer validate --strict

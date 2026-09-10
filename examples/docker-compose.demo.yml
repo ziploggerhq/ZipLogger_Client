@@ -1,9 +1,15 @@
-# Northwind Coffee — six demo services, one per ZipLogger SDK.
+# Northwind Coffee — eight demo services, one per ZipLogger SDK.
 #
 # Each service installs its SDK from the public registry (NuGet, npm, PyPI, Maven
-# Central, the Go proxy), so what runs here is what a customer would get.
+# Central, the Go proxy, and — once registered — RubyGems and Packagist), so what runs
+# here is what a customer would get.
 #
 #   docker compose -f docker-compose.demo.yml up -d --build
+#
+# notifications (Ruby) and loyalty (PHP) are in the `preview` profile because the gem and
+# the Composer package are not published yet, so their builds would fail. Add them with:
+#
+#   docker compose -f docker-compose.demo.yml --profile preview up -d --build
 #
 # Only the storefront publishes a port; put a reverse proxy in front of it. The
 # checkout API is reachable at /checkout on the storefront's own origin, which is
@@ -79,6 +85,31 @@ services:
       DEMO_INTERVAL_SECONDS: "${DEMO_INTERVAL_SECONDS:-7}"
     networks: [northwind]
     restart: unless-stopped
+
+  notifications:
+    build: ./ruby-notifications
+    container_name: northwind-notifications
+    profiles: [preview]   # needs `ziplogger` on RubyGems; see PUBLISHING.md
+    environment:
+      <<: *ziplogger
+      DEMO_INTERVAL_SECONDS: "${DEMO_INTERVAL_SECONDS:-8}"
+    networks: [northwind]
+    restart: unless-stopped
+
+  loyalty:
+    build: ./php-loyalty
+    container_name: northwind-loyalty
+    profiles: [preview]   # needs `ziplogger/ziplogger` on Packagist; see PUBLISHING.md
+    environment:
+      <<: *ziplogger
+      DEMO_INTERVAL_SECONDS: "${DEMO_INTERVAL_SECONDS:-5}"
+    networks: [northwind]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@file_get_contents(\"http://127.0.0.1:8080/health\") === false ? 1 : 0);'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   northwind:

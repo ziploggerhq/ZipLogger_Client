@@ -148,10 +148,11 @@ To read data back out, see the [query API](query-api.md).
 
 ## Quotas
 
-Each plan includes a daily and a monthly log quota, and spans count toward the same quota. `429`
-responses carry a `Retry-After` header pointing at the next UTC midnight. Official SDKs honor it
-automatically, so your application is never blocked by an exhausted quota. See
-[pricing](https://ziplogger.ai/pricing.html) for plan limits.
+Paid plans are sold by **daily ingest volume**: 1 GB a day on Pro, 3 GB on Team, 10 GB on Business, covering logs and traces together and measured on the payload you send. There is no overage, so exceeding the day's volume pauses ingestion rather than adding to your invoice. The Free plan is count-based instead: 1,000 log lines a day and 30,000 a month.
+
+Either way an exhausted quota answers `429` with a `Retry-After` header pointing at the next UTC midnight, plus a JSON body showing current usage. Official SDKs honor it automatically, so your application is never blocked by an exhausted quota.
+
+See [pricing](https://ziplogger.ai/pricing.html) for plan limits.
 
 ## Troubleshooting
 

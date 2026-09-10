@@ -1,11 +1,14 @@
 # Northwind Coffee — one demo service per SDK
 
-Six small services for a fictional coffee roastery, one in each language ZipLogger
+Eight small services for a fictional coffee roastery, one in each language ZipLogger
 supports. They exist for two reasons: to show what ZipLogger looks like with live data
 in every language, and to prove each published SDK actually works by running it.
 
 Every service installs its SDK from the public registry, so what runs here is exactly
-what a customer gets.
+what a customer gets. Two of them cannot do that yet: `ruby-notifications` and
+`php-loyalty` install `ziplogger` from RubyGems and Packagist, where the packages are not
+published (see [PUBLISHING.md](../PUBLISHING.md)). They are therefore behind the compose
+profile `preview` and are skipped by a plain `docker compose up`.
 
 | Service | Language | SDK | What it demonstrates |
 |---|---|---|---|
@@ -14,6 +17,8 @@ what a customer gets.
 | [recommendations](python-recommendations) | Python 3.12 | `ziplogger` logging handler | `extra={...}` becoming searchable fields, `exc_info` becoming a stack trace |
 | [inventory](go-inventory) | Go 1.22 | `sdk_go` slog handler | `log/slog` as the interface, errors mapped to exception fields |
 | [payments](java-payments) | Java 17 | `dev.ziplogger:ziplogger` JUL handler | attaching to `java.util.logging` in one line |
+| [notifications](ruby-notifications) | Ruby 3.3 | `ziplogger` via `Ziplogger::Logger` | a `::Logger` subclass shipping and printing from one logger, Hash messages as fields, `exception:` as a stack trace |
+| [loyalty](php-loyalty) | PHP 8.3 | `ziplogger/ziplogger` Monolog handler | Monolog context becoming fields, `['exception' => $e]` becoming a stack trace, and the per-request shutdown flush |
 | [storefront](browser-storefront) | Browser | `@ziplogger/browser` | uncaught errors, failed fetches, browser spans sharing a trace id with the server, and `track()` / `identify()` product analytics |
 
 ## Every failure here is real
@@ -29,6 +34,10 @@ repository, so "which commit broke this?" resolves to an actual change.
 - **inventory** parses a feed row whose quantity column is `n/a`
 - **payments** converts a currency that was added to the storefront but not to the rate table
 - **checkout** applies a promo code that has no configured discount rate
+- **notifications** renders a template for a locale the storefront offers (`pt-BR`) but the
+  template table does not know, and `Hash#fetch` raises `KeyError`
+- **loyalty** works out how much a guest must spend to reach Bronze by dividing by the tier's
+  points-per-dollar, which is zero for guests, and throws `DivisionByZeroError`
 - **storefront** reads `.items` off a null cart, uncaught, the way front-end bugs really happen
 
 ## Analytics, not just logs
@@ -45,8 +54,8 @@ account rather than to a second person. The storefront passes its `identity` to 
 API, which tracks `order_confirmed` against the same ids — revenue is recorded server-side
 because it is not something to take the client's word for.
 
-The four background services ship logs, traces and metrics only: `sdk_node`, `sdk_python`,
-`sdk_go` and `sdk_java` have no event API yet.
+The six background services ship logs, traces and metrics only: `sdk_node`, `sdk_python`,
+`sdk_go`, `sdk_java`, `sdk_ruby` and `sdk_php` have no event API yet.
 
 Deploying this on a server behind a hostname, with a read-only login to share with
 clients, is covered in [DEPLOY.md](DEPLOY.md).
@@ -56,14 +65,17 @@ clients, is covered in [DEPLOY.md](DEPLOY.md).
 ```bash
 cp .env.example .env       # fill in the two API keys
 docker compose -f docker-compose.demo.yml up -d --build
+
+# once ziplogger is on RubyGems and Packagist, add the Ruby and PHP services:
+docker compose -f docker-compose.demo.yml --profile preview up -d --build
 ```
 
 Only the storefront publishes a port. The checkout API is reachable at `/checkout` on the
 storefront's own origin, which keeps browser calls same-origin so `instrumentFetch`
 propagates its `traceparent` without extra configuration.
 
-The five background services generate traffic on a timer, so a demo workspace always has
-live data. `DEMO_INTERVAL_SECONDS` controls the pace.
+The background services generate traffic on a timer, so a demo workspace always has live
+data. `DEMO_INTERVAL_SECONDS` controls the pace.
 
 ## Two API keys, on purpose
 
@@ -84,9 +96,15 @@ cd go-inventory          && ZIPLOGGER_API_KEY=zk_... go run .
 cd java-payments         && mvn package && ZIPLOGGER_API_KEY=zk_... java -jar target/payments-1.0.0.jar
 cd dotnet-checkout       && ZIPLOGGER_API_KEY=zk_... dotnet run
 cd browser-storefront    && npm install && python -m http.server 8081   # then edit config.js
+cd ruby-notifications    && gem install ziplogger && ZIPLOGGER_API_KEY=zk_... ruby app.rb
+cd php-loyalty           && composer install && ZIPLOGGER_API_KEY=zk_... php -S 0.0.0.0:8080 public/index.php   # then: php bin/traffic.php
 ```
 
-All six read the same variables: `ZIPLOGGER_ENDPOINT`, `ZIPLOGGER_API_KEY`,
+The last two need the gem and the Composer package to exist; until they are published, point
+them at the SDK sources in this repository (`gem 'ziplogger', path: '../../sdk_ruby'`, or a
+Composer `path` repository pointing at `../../sdk_php`).
+
+All eight read the same variables: `ZIPLOGGER_ENDPOINT`, `ZIPLOGGER_API_KEY`,
 `ZIPLOGGER_ENVIRONMENT`, and `DEMO_INTERVAL_SECONDS`.
 
 ## A note on the .NET example

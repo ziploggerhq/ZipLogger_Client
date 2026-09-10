@@ -37,6 +37,8 @@ Your log is searchable within seconds.
 | [Node.js](docs/nodejs.md): core client plus Pino and Winston transports | `ziplogger` (npm) |
 | [Go](docs/go.md): client plus `log/slog` handler | `ziplogger` (Go module) |
 | [Java](docs/java.md): JDK-only client plus `java.util.logging` handler | `dev.ziplogger:ziplogger` (Maven) |
+| [Ruby](docs/ruby.md): `::Logger` subclass plus core client, Rails and Sidekiq recipes | `ziplogger` (RubyGems) |
+| [PHP](docs/php.md): Monolog handler (Laravel, Symfony), PSR-3 logger, core client | `ziplogger/ziplogger` (Composer) |
 | [Browser / React](docs/browser.md): error capture, React error boundary, fetch tracing | `@ziplogger/browser` (npm) |
 | [OpenTelemetry](docs/opentelemetry.md): native OTLP/HTTP logs receiver | any OTel SDK or Collector |
 | [Fluent Bit / Vector](docs/shippers.md): ship logs from apps you cannot modify | any shipper |
@@ -66,14 +68,22 @@ The SDKs themselves live in this repository, so you can read exactly what runs i
 | Browser / React | [`sdk_browser/`](sdk_browser) | `npm install @ziplogger/browser` |
 | Go | [`sdk_go/`](sdk_go) | `go get github.com/ziploggerhq/ZipLogger_Client/sdk_go` |
 | Java | [`sdk_java/`](sdk_java) | `dev.ziplogger:ziplogger` (Maven Central) |
+| Ruby | [`sdk_ruby/`](sdk_ruby) | `gem install ziplogger` |
+| PHP | [`sdk_php/`](sdk_php) | `composer require ziplogger/ziplogger` |
 | .NET | published from the platform repo | `dotnet add package ZipLogger.Extensions.Logging` |
 
-All packages are MIT licensed and share one version number (currently 0.3.3). Every package is
-dependency-free apart from the optional Pino and Winston peer packages in the Node SDK.
+All packages are MIT licensed and share one version number (currently 0.3.3, and 0.4.0 for the
+Ruby and PHP SDKs added since). Every package is dependency-free apart from the optional Pino and
+Winston peer packages in the Node SDK and the `psr/log` interface package in the PHP SDK (Monolog
+is optional there too).
 
-Every package above is published and installable today. The npm packages carry provenance
-attestations, and the Maven artifacts are GPG signed, so you can verify that what you install was
-built from this repository. See [PUBLISHING.md](PUBLISHING.md) for how a release is cut.
+The .NET, Python, Node, browser, Go and Java packages are published and installable today. The npm
+packages carry provenance attestations and the Maven artifacts are GPG signed, so you can verify
+that what you install was built from this repository. **Ruby and PHP are not on RubyGems and
+Packagist yet** — their CI jobs are wired and their tests pass, but the registry accounts are still
+to be created, so install them from this repository (`gem 'ziplogger', path:` / a Composer `path`
+repository) until the first release. See [PUBLISHING.md](PUBLISHING.md) for how a release is cut
+and what is left to set up.
 
 ## Shared delivery semantics
 
@@ -95,11 +105,11 @@ See the [configuration reference](docs/configuration.md) for the exact option na
 
 ## Quotas
 
-Each plan includes a daily and a monthly log quota, and spans count toward the same quota as logs.
-When a quota is exhausted, ingestion answers `429` with a `Retry-After` header pointing at the next
-UTC midnight, plus a JSON body showing current usage. SDKs honor it automatically and your
-application is never blocked. See [pricing](https://ziplogger.ai/pricing.html) for plan limits and
-[the HTTP API reference](docs/http-api.md#responses) for the response body.
+Paid plans are sold by **daily ingest volume**: 1 GB a day on Pro, 3 GB on Team, 10 GB on Business, covering logs and traces together and measured on the payload you send. There is no overage, so exceeding the day's volume pauses ingestion rather than adding to your invoice. The Free plan is count-based instead: 1,000 log lines a day and 30,000 a month.
+
+Either way an exhausted quota answers `429` with a `Retry-After` header pointing at the next UTC midnight, plus a JSON body showing current usage. Official SDKs honor it automatically, so your application is never blocked by an exhausted quota.
+
+See [pricing](https://ziplogger.ai/pricing.html) for plan limits and [the HTTP API reference](docs/http-api.md#responses) for the response body.
 
 ## Support
 

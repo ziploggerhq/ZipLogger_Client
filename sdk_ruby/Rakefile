@@ -1,0 +1,28 @@
+# frozen_string_literal: true
+
+require "rake/testtask"
+require_relative "lib/ziplogger/version"
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "lib" << "test"
+  t.test_files = FileList["test/**/*_test.rb"]
+  t.warning = true
+end
+
+GEM_FILE = "pkg/ziplogger-#{Ziplogger::VERSION}.gem"
+
+desc "Build the gem into pkg/"
+task :build do
+  mkdir_p "pkg"
+  sh "gem build ziplogger.gemspec --output #{GEM_FILE}"
+end
+
+# `rubygems/release-gem` runs `bundle exec rake release`. Bundler's stock release task would also
+# create and push a `v<version>` git tag, which on a `gem-v*` release would trigger every other
+# registry's publish job. This release task only builds and pushes the gem; tags stay with git.
+desc "Build and push the gem to RubyGems (credentials come from the environment)"
+task release: :build do
+  sh "gem push #{GEM_FILE}"
+end
+
+task default: :test

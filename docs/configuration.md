@@ -24,7 +24,7 @@ several environments without a code change. Options passed in code always win.
 | `ZIPLOGGER_SOURCE` | Service name, drives filtering and dashboards | assembly / executable / script name |
 | `ZIPLOGGER_RELEASE` | Version of the running build | .NET informational version, nearest `package.json` version |
 | `ZIPLOGGER_COMMIT_SHA` | Git commit of the running build | `GIT_COMMIT`, `COMMIT_SHA`, .NET SourceLink `+sha` suffix |
-| `ZIPLOGGER_ENVIRONMENT` | Deployment environment | `DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT`, `NODE_ENV`, `ENVIRONMENT`; defaults to `production` |
+| `ZIPLOGGER_ENVIRONMENT` | Deployment environment | `DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT`, `NODE_ENV`, `APP_ENV` (PHP), `RAILS_ENV`, `RACK_ENV` (Ruby), `ENVIRONMENT`; defaults to `production` |
 
 `release` and `commitSha` are the two that matter most: they are the inputs to git regression
 attribution. Without them ZipLogger can still cluster and search your errors, but it cannot tell
@@ -56,29 +56,35 @@ env:
 Defaults are identical across server SDKs. Only the browser SDK differs, because a tab is not a
 server.
 
-| Concept | Default | .NET | Python | Node.js | Go | Java |
-|---|---|---|---|---|---|---|
-| Max buffered entries | 10,000 | `QueueCapacity` | `queue_size` | `queueCapacity` | `QueueCapacity` | `queueCapacity` |
-| Entries per request | 100 | `BatchSize` | `batch_size` | `batchSize` | `BatchSize` | `batchSize` |
-| Linger before partial flush | 2 s | `FlushInterval` | `flush_interval` | `flushIntervalMs` | `FlushInterval` | `flushInterval` |
-| Retry attempts per batch | 5 | `MaxRetries` | `max_retries` | `maxRetries` | `MaxRetries` | `maxRetries` |
-| First retry delay | 500 ms | `RetryBaseDelay` | `retry_base_delay` | `retryBaseDelayMs` | `RetryBaseDelay` | `retryBaseDelay` |
-| Retry delay ceiling | 30 s | `RetryMaxDelay` | `retry_max_delay` | `retryMaxDelayMs` | `RetryMaxDelay` | `retryMaxDelay` |
-| Per-request HTTP timeout | 10 s | `HttpTimeout` | `timeout` | `timeoutMs` | `Timeout` | `timeout` |
-| Flush budget on shutdown | 5 s | `ShutdownTimeout` | (at exit) | `close(ms)` | `Close(d)` | (at `close()`) |
-| Dropped counter | 0 | `DroppedCount` | `handler.dropped` | `client.dropped` | `client.Dropped()` | `client.dropped()` |
+| Concept | Default | .NET | Python | Node.js | Go | Java | Ruby | PHP |
+|---|---|---|---|---|---|---|---|---|
+| Max buffered entries | 10,000 | `QueueCapacity` | `queue_size` | `queueCapacity` | `QueueCapacity` | `queueCapacity` | `queue_size` | `queueCapacity` |
+| Entries per request | 100 | `BatchSize` | `batch_size` | `batchSize` | `BatchSize` | `batchSize` | `batch_size` | `batchSize` |
+| Linger before partial flush | 2 s | `FlushInterval` | `flush_interval` | `flushIntervalMs` | `FlushInterval` | `flushInterval` | `flush_interval` | `flushInterval` |
+| Retry attempts per batch | 5 | `MaxRetries` | `max_retries` | `maxRetries` | `MaxRetries` | `maxRetries` | `max_retries` | `maxRetries` (2) |
+| First retry delay | 500 ms | `RetryBaseDelay` | `retry_base_delay` | `retryBaseDelayMs` | `RetryBaseDelay` | `retryBaseDelay` | `retry_base_delay` | `retryBaseDelay` (250 ms) |
+| Retry delay ceiling | 30 s | `RetryMaxDelay` | `retry_max_delay` | `retryMaxDelayMs` | `RetryMaxDelay` | `retryMaxDelay` | `retry_max_delay` | `retryMaxDelay` (2 s) |
+| Per-request HTTP timeout | 10 s | `HttpTimeout` | `timeout` | `timeoutMs` | `Timeout` | `timeout` | `timeout` | `timeout`, `connectTimeout` (3 s) |
+| Flush budget on shutdown | 5 s | `ShutdownTimeout` | (at exit) | `close(ms)` | `Close(d)` | (at `close()`) | `close(timeout:)` | (at `close()` / shutdown hook) |
+| Dropped counter | 0 | `DroppedCount` | `handler.dropped` | `client.dropped` | `client.Dropped()` | `client.dropped()` | `client.dropped` | `$client->dropped()` |
 
 Browser defaults: 1,000-event buffer, 20 events per request, 3 s linger, 2 retries.
 
+PHP has no background thread, so its client buffers in memory and sends synchronously when the
+buffer reaches `batchSize`, when the oldest entry is older than `flushInterval` at the next
+`log()`, on `flush()`, or at shutdown (under PHP-FPM that is after the response has been sent when
+`fastcgi_finish_request()` was called, as Laravel and Symfony do); its retry defaults are therefore
+tighter (2 retries, 0.25 s base, 2 s ceiling). See [PHP](php.md#how-delivery-works-in-php).
+
 ## Enrichment options by language
 
-| Concept | .NET | Python | Node.js | Go | Java |
-|---|---|---|---|---|---|
-| Service name | `Source` | `source` | `source` | `Source` | `source` |
-| Release | `Release` | `release` | `release` | `Release` | `release` |
-| Commit SHA | `CommitSha` | `commit_sha` | `commitSha` | `CommitSha` | `commitSha` |
-| Environment | (from host env) | `environment` | `environment` | `Environment` | `environment` |
-| Tags on every entry | `Tags` | `tags` | `tags` | `Tags` | `tags` |
+| Concept | .NET | Python | Node.js | Go | Java | Ruby | PHP |
+|---|---|---|---|---|---|---|---|
+| Service name | `Source` | `source` | `source` | `Source` | `source` | `source` | `source` |
+| Release | `Release` | `release` | `release` | `Release` | `release` | `release` | `release` |
+| Commit SHA | `CommitSha` | `commit_sha` | `commitSha` | `CommitSha` | `commitSha` | `commit_sha` | `commitSha` |
+| Environment | (from host env) | `environment` | `environment` | `Environment` | `environment` | `environment` | `environment` |
+| Tags on every entry | `Tags` | `tags` | `tags` | `Tags` | `tags` | `tags` | `tags` |
 
 ## Tuning guidance
 
