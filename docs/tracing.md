@@ -179,7 +179,7 @@ same trace, exports a browser-side root span, and logs failed requests with the 
 - Partial success is reported per the OTLP spec: HTTP 200 with `partialSuccess.rejectedSpans`
   (protobuf) or `{"partialSuccess":{"rejectedSpans":N}}` (JSON).
 - **Traces containing an error span are kept for your plan's full retention. Error-free traces are
-  cleaned up after 48 hours.** Traces exist to debug failures, and keeping every healthy request
+  kept for up to 30 days, never longer than your plan's retention.** Traces exist to debug failures, and keeping every healthy request
   for a month buys nothing.
 - Reading a single trace returns at most 1,000 spans, with a `truncated` flag when it hits the cap.
 
@@ -206,5 +206,5 @@ them.
 | `415` | Content type must be `application/x-protobuf` or `application/json`. |
 | Service shows as `unknown` | Set `OTEL_SERVICE_NAME` or the `service.name` resource attribute. |
 | Spans arrive but never nest | Context is not propagating. Confirm every hop passes `traceparent` and that your framework's instrumentation is registered. |
-| Trace not found when opening a link | Error-free traces are pruned after 48 hours, so old links to healthy traces expire. |
+| Trace not found when opening a link | Error-free traces are pruned after your workspace's window (up to 30 days), so old links to healthy traces expire. |
 | Quota burning faster than before | Auto-instrumentation spans are metered as logs. Turn down the sampler. |

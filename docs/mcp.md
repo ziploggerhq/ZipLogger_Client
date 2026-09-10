@@ -83,7 +83,7 @@ it can read the suspect commit's diff and the failing stack frame together.
 - `search_logs` returns at most 100 events per call; `get_trace` at most 500 spans.
 - `list_error_patterns` clusters over a bounded sample of recent errors, so it is a ranking of what
   is breaking, not an exhaustive audit.
-- Error-free traces are pruned after 48 hours, so `get_trace` on an old healthy trace can come back
+- Error-free traces are pruned after your workspace's window (up to 30 days), so `get_trace` on an old healthy trace can come back
   empty. See [tracing](tracing.md#quotas-and-retention).
 - MCP calls query your existing data. They consume no log quota, and no AI requests either: the
   reasoning happens in your assistant, on your AI account.

@@ -141,7 +141,7 @@ GET /api/v1/traces/daily-stats?service=orders-api&name=&days=14
 - A single trace returns `{ traceId, spans, truncated }`, capped at 1,000 spans.
 - `daily-stats` reads daily rollups (`day`, `service`, `name`, `spanCount`, `avgMs`, `p95Ms`,
   `errorCount`) that outlive raw spans, which is what makes day-over-day comparison possible after
-  the 48-hour cleanup of error-free traces. Pass an empty `name` for the whole-service rollup.
+  the cleanup of error-free traces (up to 30 days). Pass an empty `name` for the whole-service rollup.
 
 ## Metrics
 
