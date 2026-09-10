@@ -209,7 +209,11 @@ export declare function createUseZipLogger(
 }
 
 // ./replay
-/** Test seams. Production code passes none of these. */
+/**
+ * Optional overrides. An app with a bundler passes none of these; a page that loads the SDK from
+ * plain `<script type="module">` tags supplies `loadRecorder`, because a browser cannot resolve
+ * the bare `@rrweb/record` specifier without a bundler or an import map.
+ */
 export interface SessionReplayDependencies {
   /** Provides rrweb's `record`. Default: `import('@rrweb/record')`. */
   loadRecorder?: () => Promise<(options: Record<string, unknown>) => (() => void) | undefined>

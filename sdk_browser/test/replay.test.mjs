@@ -398,6 +398,41 @@ test('reset() (sign-out) ends the recording and starts a new one under the new s
   await waitFor(() => chunks.some((c) => c.payload.sessionId === client.identity.sessionId))
 })
 
+test('stop() called while start() is still in flight prevents recording', async () => {
+  // Starting is two awaits deep (config, then the recorder download). Code that starts on mount
+  // and stops on an immediate route change must not end up recording the page it left.
+  let releaseRecorder
+  const gate = new Promise((resolve) => { releaseRecorder = resolve })
+  const rec = fakeRecorder()
+  const client = makeClient()
+  const controller = attach(client, {
+    loadRecorder: async () => { await gate; return (await rec.load()) },
+    compress: null,
+  })
+
+  const starting = controller.start()
+  await controller.stop()          // the recorder has not even been handed over yet
+  releaseRecorder()
+  await starting
+
+  assert.equal(controller.isRecording(), false)
+  assert.equal(controller.lastReason, 'stopped')
+  assert.equal(rec.options, null, 'the recorder was never started')
+  await new Promise((r) => setTimeout(r, 60))
+  assert.deepEqual(chunksOf(client), [], 'and nothing was uploaded')
+})
+
+test('start() after a stop works again', async () => {
+  const rec = fakeRecorder()
+  const client = makeClient()
+  const controller = attach(client, { loadRecorder: rec.load, compress: null })
+  await controller.start()
+  await controller.stop()
+  assert.equal(controller.isRecording(), false)
+  await controller.start()
+  assert.equal(controller.isRecording(), true, 'a cancelled start must not poison later ones')
+})
+
 // ---- privacy ----------------------------------------------------------------------------------
 
 test('inputs are masked by default and the always-on selectors are present', async () => {

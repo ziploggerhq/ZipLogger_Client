@@ -24,7 +24,7 @@
  * says so once on the console; it never reaches your page or the rest of the SDK.
  */
 
-export const REPLAY_SDK_VERSION = '0.5.0'
+export const REPLAY_SDK_VERSION = '0.5.1'
 
 const HAS_WINDOW = typeof window !== 'undefined' && typeof document !== 'undefined'
 
@@ -119,8 +119,10 @@ const sleep = (ms) => new Promise((resolve) => {
  * with a live controller and, when `sessionReplay.enabled` is set, starts it.
  *
  * @param {import('./index').ZipLoggerBrowser} client
- * @param {import('./index').SessionReplayDependencies} [deps] Test seams: the recorder loader,
- *   fetch and the compressor. Production code passes nothing.
+ * @param {import('./index').SessionReplayDependencies} [deps] Optional overrides for the recorder
+ *   loader, fetch and the compressor. An app with a bundler passes nothing; a page loading the SDK
+ *   from plain script tags supplies `loadRecorder`, because a browser cannot resolve the bare
+ *   `@rrweb/record` specifier on its own.
  * @returns {import('./index').SessionReplayController}
  */
 export function attachSessionReplay(client, deps = {}) {
@@ -144,6 +146,9 @@ export class SessionReplayController {
 
     this._recording = false
     this._starting = null
+    // Set by stop() so a start that is still awaiting the config request or the recorder download
+    // does not go on to begin recording after the caller has already said not to.
+    this._cancelled = false
     this._stopRecorder = null
     this._recorder = null
     this._sessionId = null
@@ -186,15 +191,24 @@ export class SessionReplayController {
     if (this._recording) return Promise.resolve()
     if (this._starting) return this._starting
     if (!HAS_WINDOW) { this.lastReason = 'no_window'; return Promise.resolve() }
+    this._cancelled = false
     this._starting = this._startInner()
       .catch((err) => this._fail('could not start', err))
       .finally(() => { this._starting = null })
     return this._starting
   }
 
-  /** Stop recording and send what is buffered as the final chunk. */
+  /**
+   * Stop recording and send what is buffered as the final chunk.
+   *
+   * Starting is asynchronous — a configuration request, then the recorder download — so stop()
+   * has to cancel a start that has not finished yet. Without that, code which starts on mount and
+   * stops on an immediate route change would go on recording the page it was told to leave alone.
+   */
   stop() {
+    this._cancelled = true
     if (this._recording) this._finish('stopped')
+    else this.lastReason = 'stopped'
     return this._uploading
   }
 
@@ -206,6 +220,7 @@ export class SessionReplayController {
     if (state && state.sampled === false) { this.lastReason = 'not_sampled'; return }
 
     const config = await this._fetchConfig()
+    if (this._cancelled) { this.lastReason = 'stopped'; return }
     this.serverConfig = config
     if (!config) { this.lastReason = 'unreachable'; return }
     if (!config.enabled) { this.lastReason = config.reason || 'disabled'; return }
@@ -216,6 +231,7 @@ export class SessionReplayController {
     if (!sampled) { this.lastReason = 'not_sampled'; return }
 
     const record = await this._loadRecorder()
+    if (this._cancelled) { this.lastReason = 'stopped'; return }
     if (typeof record !== 'function') throw new Error('@rrweb/record did not provide record()')
 
     const o = this._options
