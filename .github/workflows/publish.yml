@@ -42,14 +42,31 @@ jobs:
       - name: Test browser SDK
         working-directory: sdk_browser
         run: npm test
+      # One tag publishes two packages that version independently, so the common case is that only
+      # one of them has moved. npm answers a re-publish of an existing version with a 403, which
+      # would fail the job — and, worse, fail it BEFORE the package that did change gets its turn.
+      # Skipping a version that is already on the registry makes the tag mean "publish whatever is
+      # new here", which is what a release tag should mean.
       - name: Publish ziplogger
         working-directory: sdk_node
-        run: npm publish --provenance --access public
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "ziplogger@$version" version >/dev/null 2>&1; then
+            echo "ziplogger@$version is already on npm — nothing to publish."
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish @ziplogger/browser
         working-directory: sdk_browser
-        run: npm publish --provenance --access public
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@ziplogger/browser@$version" version >/dev/null 2>&1; then
+            echo "@ziplogger/browser@$version is already on npm — nothing to publish."
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
