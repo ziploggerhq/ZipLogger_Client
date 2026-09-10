@@ -32,7 +32,8 @@ globalThis.sessionStorage = {
 Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'node-test' }, configurable: true })
 
 const { ZipLoggerBrowser } = await import('../index.js')
-const { attachSessionReplay, sampledIn, fnv1a, ALWAYS_MASK_SELECTORS, ALWAYS_BLOCK_SELECTORS } = await import('../replay.js')
+const { attachSessionReplay, sampledIn, fnv1a, ALWAYS_MASK_SELECTORS, ALWAYS_BLOCK_SELECTORS, REPLAY_SDK_VERSION } = await import('../replay.js')
+const { version: PACKAGE_VERSION } = JSON.parse(await import('node:fs').then((fs) => fs.promises.readFile(new URL('../package.json', import.meta.url), 'utf8')))
 
 let server, chunks, logs, configResponses, chunkResponses, configRequests
 
@@ -168,6 +169,12 @@ test('a client without sessionReplay never contacts the server or loads a record
   assert.equal(chunks.length, 0)
 })
 
+test('the version reported on the wire is the package version', () => {
+  // Pinned to package.json rather than to a literal: a release bumps one place, and a chunk that
+  // claims the wrong SDK version makes every support conversation harder.
+  assert.equal(REPLAY_SDK_VERSION, PACKAGE_VERSION)
+})
+
 test('the core controller is inert and typed the same before attach', () => {
   const client = makeClient()
   assert.equal(client.sessionReplay.isRecording(), false)
@@ -260,7 +267,7 @@ test('chunk 0 carries Meta and FullSnapshot, and sequence numbers climb by one',
   assert.equal(first.events[1].type, 2)
   assert.equal(first.meta.final, false)
   assert.equal(first.meta.url, 'http://127.0.0.1/app')
-  assert.equal(first.meta.sdk, '0.5.0')
+  assert.equal(first.meta.sdk, REPLAY_SDK_VERSION)
   assert.equal(chunks[0].apiKey, 'zk_test')
 
   rec.mutation(3)
