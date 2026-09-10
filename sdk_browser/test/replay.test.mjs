@@ -483,6 +483,64 @@ test('customer selectors are added, never replacing the built-in ones', async ()
   assert.equal(rec.options.blockSelector, '[data-ziplogger-ignore],#chat')
 })
 
+test('scrubUrl rewrites the page address, the links on it, and the reported url', async () => {
+  // An app whose paths carry identifiers records them in attributes, which masking never touches.
+  globalThis.window.location = { href: 'http://127.0.0.1/users/someone@example.com', origin: 'http://127.0.0.1', hostname: '127.0.0.1', pathname: '/users/someone@example.com' }
+  const rec = fakeRecorder()
+  const client = makeClient({
+    enabled: true,
+    // Two rules, because an identifier shows up in more than one shape: as a path segment, and
+    // buried in a filename. Covering both is the app's job — the SDK's job is to hand every URL
+    // it records to this function, which is what the assertions below check.
+    scrubUrl: (url) => url
+      .replace(/\/users\/[^/?#]+/g, '/users/:id')
+      .replace(/[^/?#]+@[^/?#]+/g, ':redacted'),
+  })
+  const controller = attach(client, { loadRecorder: rec.load, compress: null })
+  await controller.start()
+
+  // A snapshot carrying links, exactly as rrweb would serialise them.
+  rec.emit({
+    type: 2, timestamp: Date.now(),
+    data: { node: { type: 0, id: 1, childNodes: [
+      { type: 2, id: 2, tagName: 'a', attributes: { href: 'http://127.0.0.1/users/someone@example.com' }, childNodes: [] },
+      { type: 2, id: 3, tagName: 'img', attributes: { src: 'http://127.0.0.1/avatars/someone@example.com.png' }, childNodes: [] },
+    ] } },
+  })
+  rec.emit({ type: 4, timestamp: Date.now(), data: { href: 'http://127.0.0.1/users/someone@example.com', width: 1, height: 1 } })
+  await waitFor(() => chunksOf(client).length >= 1)
+
+  const body = JSON.stringify(chunksOf(client).map((c) => c.payload))
+  assert.equal(body.includes("someone@example.com"), false, `the identifier survived at ${body.indexOf("someone@example.com")}: ${JSON.stringify(body.slice(Math.max(0, body.indexOf("someone@example.com") - 220), body.indexOf("someone@example.com") + 40))}`)
+  assert.ok(body.includes('/users/:id'), 'the href was replaced by the scrubbed form')
+  assert.ok(body.includes('/avatars/:redacted'), 'and so was the img src, not just the href')
+  assert.equal(chunksOf(client)[0].payload.meta.url, 'http://127.0.0.1/users/:id')
+
+  globalThis.window.location = { href: 'http://127.0.0.1/app', origin: 'http://127.0.0.1', hostname: '127.0.0.1', pathname: '/app' }
+})
+
+test('without scrubUrl nothing is walked and urls are recorded as they are', async () => {
+  const rec = fakeRecorder()
+  const client = makeClient()
+  const controller = attach(client, { loadRecorder: rec.load, compress: null })
+  await controller.start()
+  rec.emit({ type: 2, timestamp: Date.now(), data: { node: { type: 2, id: 2, tagName: 'a', attributes: { href: '/orders/42' }, childNodes: [] } } })
+  await waitFor(() => chunksOf(client).length >= 1)
+  assert.ok(JSON.stringify(chunksOf(client)[0].payload).includes('/orders/42'))
+})
+
+test('a scrubber that throws drops the value instead of leaking it', async () => {
+  const rec = fakeRecorder()
+  const client = makeClient({ enabled: true, scrubUrl: () => { throw new Error('bad scrubber') } })
+  const controller = attach(client, { loadRecorder: rec.load, compress: null })
+  await controller.start()
+  rec.emit({ type: 2, timestamp: Date.now(), data: { node: { type: 2, id: 2, tagName: 'a', attributes: { href: '/users/secret@example.com' }, childNodes: [] } } })
+  await waitFor(() => chunksOf(client).length >= 1)
+  const body = JSON.stringify(chunksOf(client)[0].payload)
+  assert.equal(body.includes('secret@example.com'), false)
+  assert.equal(controller.isRecording(), true, 'and recording continues')
+})
+
 test('the upload URL carries origin and path only, never the query string', async () => {
   globalThis.window.location = { href: 'http://127.0.0.1/reset?token=SECRET', origin: 'http://127.0.0.1', hostname: '127.0.0.1', pathname: '/reset' }
   const rec = fakeRecorder()

@@ -26,6 +26,23 @@ export interface SessionReplayOptions {
   maskSelector?: string | null
   /** Extra CSS selector whose subtree is not recorded at all, on top of `[data-ziplogger-ignore]`. */
   blockSelector?: string | null
+  /**
+   * Rewrite every URL a recording carries — the page's own address, and the `href`, `src`,
+   * `action` and similar attributes of everything on it.
+   *
+   * Masking covers text and input values. It does not touch attributes, and a URL is an
+   * attribute, so an app whose paths carry identifiers (`/users/{email}`, `/orders/{id}`) records
+   * them however thoroughly its text is masked. Supply a function that replaces the identifying
+   * parts:
+   *
+   * ```js
+   * scrubUrl: (url) => url.replace(/\/users\/[^/?#]+/g, '/users/:id')
+   * ```
+   *
+   * Off by default: it walks every event, which is a cost an app without identifiers in its paths
+   * should not pay. A scrubber that throws drops the value rather than passing it through.
+   */
+  scrubUrl?: ((url: string) => string) | null
   /** Record canvas contents as images. Costly; default false. */
   recordCanvas?: boolean
   /** Stop recording after this many seconds. Default 3600, never more than the server allows. */

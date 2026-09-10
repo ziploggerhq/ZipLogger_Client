@@ -1,6 +1,6 @@
 {
   "name": "@ziplogger/browser",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "ZipLogger browser SDK \u2014 product-analytics events, console errors, unhandled rejections, distributed tracing and session replay from web apps, with a React error boundary. Zero dependencies.",
   "license": "MIT",
   "type": "module",

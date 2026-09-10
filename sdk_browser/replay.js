@@ -24,7 +24,7 @@
  * says so once on the console; it never reaches your page or the rest of the SDK.
  */
 
-export const REPLAY_SDK_VERSION = '0.5.1'
+export const REPLAY_SDK_VERSION = '0.5.2'
 
 const HAS_WINDOW = typeof window !== 'undefined' && typeof document !== 'undefined'
 
@@ -43,6 +43,7 @@ const DEFAULTS = {
   maskAllText: false,
   maskSelector: null,
   blockSelector: null,
+  scrubUrl: null,
   recordCanvas: false,
   maxSessionSeconds: 3600,
   maxSessionBytes: 50_000_000,
@@ -73,6 +74,11 @@ export const ALWAYS_MASK_SELECTORS = [
 
 /** Not recorded at all: the subtree is replaced by an empty box of the same size. */
 export const ALWAYS_BLOCK_SELECTORS = ['[data-ziplogger-ignore]']
+
+/** Attribute names whose value is a URL, for `scrubUrl`. */
+const URL_ATTRIBUTES = new Set([
+  'href', 'src', 'srcset', 'action', 'formaction', 'poster', 'data', 'xlink:href', 'cite', 'ping',
+])
 
 /**
  * 32-bit FNV-1a with an avalanche finish, so a session id maps to the same number in every
@@ -294,7 +300,7 @@ export class SessionReplayController {
     if (!this._recording) return
     try {
       this._noteNavigation()
-      const json = JSON.stringify(event)
+      const json = JSON.stringify(this._scrub(event))
       this._buffer.push(json)
       this._bufferBytes += json.length
 
@@ -309,12 +315,70 @@ export class SessionReplayController {
     }
   }
 
+  /**
+   * Rewrite every URL an event carries, when the app supplied a scrubber.
+   *
+   * Masking covers text and input values; it does not touch attributes, and a URL is an
+   * attribute. An app whose paths carry identifiers — /users/{email}, /orders/{id} — puts them
+   * into the recording through the page's own address and through every link on it, however
+   * thoroughly the text is masked.
+   *
+   * Off unless `scrubUrl` is set, because it walks each event and that is a cost no app should
+   * pay for a problem it does not have.
+   */
+  _scrub(event) {
+    const scrub = this._options.scrubUrl
+    if (typeof scrub !== 'function') return event
+
+    const rewrite = (value) => {
+      try {
+        const scrubbed = scrub(value)
+        return typeof scrubbed === 'string' ? scrubbed : value
+      } catch {
+        // A scrubber that throws must not lose the event — but it must not leak either, so the
+        // value is dropped rather than passed through.
+        return ''
+      }
+    }
+
+    const walk = (node, depth) => {
+      if (depth > 2000 || !node || typeof node !== 'object') return
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item, depth + 1)
+        return
+      }
+      for (const key of Object.keys(node)) {
+        const value = node[key]
+        if (typeof value === 'string') {
+          if (URL_ATTRIBUTES.has(key.toLowerCase())) node[key] = rewrite(value)
+        } else {
+          walk(value, depth + 1)
+        }
+      }
+    }
+
+    walk(event, 0)
+    return event
+  }
+
   /** SPA route changes leave no rrweb Meta event; a custom event marks them for the viewer. */
   _noteNavigation() {
     const href = window.location.href
     if (href === this._lastHref) return
     this._lastHref = href
-    this._custom('ziplogger.navigation', { url: window.location.origin + window.location.pathname })
+    this._custom('ziplogger.navigation', { url: this._scrubUrlValue(window.location.origin + window.location.pathname) })
+  }
+
+  /** One URL through the scrubber, for the places that are a bare string rather than an event. */
+  _scrubUrlValue(url) {
+    const scrub = this._options.scrubUrl
+    if (typeof scrub !== 'function') return url
+    try {
+      const scrubbed = scrub(url)
+      return typeof scrubbed === 'string' ? scrubbed : url
+    } catch {
+      return ''
+    }
   }
 
   _custom(tag, payload) {
@@ -363,8 +427,10 @@ export class SessionReplayController {
   _payload(chunk) {
     const identity = this._client.identity
     const meta = {
-      // Origin and path only: query strings are where tokens and reset codes live.
-      url: window.location.origin + window.location.pathname,
+      // Origin and path only: query strings are where tokens and reset codes live. The path
+      // itself goes through scrubUrl when the app supplied one, because a path can carry an
+      // identifier just as easily as a query string can.
+      url: this._scrubUrlValue(window.location.origin + window.location.pathname),
       userId: identity.userId ?? undefined,
       anonymousId: identity.anonymousId ?? undefined,
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
