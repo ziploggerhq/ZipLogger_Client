@@ -7,8 +7,8 @@ in every language, and to prove each published SDK actually works by running it.
 Every service installs its SDK from the public registry, so what runs here is exactly
 what a customer gets. Two of them cannot do that yet: `ruby-notifications` and
 `php-loyalty` install `ziplogger` from RubyGems and Packagist, where the packages are not
-published (see [PUBLISHING.md](../PUBLISHING.md)). They are therefore behind the compose
-profile `preview` and are skipped by a plain `docker compose up`.
+published yet. They are therefore behind the compose profile `preview` and are skipped by
+a plain `docker compose up`.
 
 | Service | Language | SDK | What it demonstrates |
 |---|---|---|---|
@@ -56,9 +56,6 @@ because it is not something to take the client's word for.
 
 The six background services ship logs, traces and metrics only: `sdk_node`, `sdk_python`,
 `sdk_go`, `sdk_java`, `sdk_ruby` and `sdk_php` have no event API yet.
-
-Deploying this on a server behind a hostname, with a read-only login to share with
-clients, is covered in [DEPLOY.md](DEPLOY.md).
 
 ## Running it
 

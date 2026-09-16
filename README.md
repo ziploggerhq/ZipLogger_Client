@@ -83,8 +83,7 @@ packages carry provenance attestations and the Maven artifacts are GPG signed, s
 that what you install was built from this repository. **Ruby and PHP are not on RubyGems and
 Packagist yet** — their CI jobs are wired and their tests pass, but the registry accounts are still
 to be created, so install them from this repository (`gem 'ziplogger', path:` / a Composer `path`
-repository) until the first release. See [PUBLISHING.md](PUBLISHING.md) for how a release is cut
-and what is left to set up.
+repository) until the first release.
 
 ## Shared delivery semantics
 
