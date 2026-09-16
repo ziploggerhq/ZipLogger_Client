@@ -95,5 +95,6 @@ it can read the suspect commit's diff and the failing stack frame together.
 | Symptom | Check |
 |---|---|
 | `Unauthorized: send your ZipLogger API key in the X-Api-Key header` | The header is `X-Api-Key`. Some clients need it quoted exactly as `"X-Api-Key: zk_..."`. |
+| Unauthorized with a key that used to work | The key needs the **read** scope. Keys are ingest-only unless you tick *Can read data* when creating them, because an ingest key is published in every browser bundle that reports to ZipLogger and must not be able to read your logs back. Create a new key with read access under **Settings → API keys** and use that one here. |
 | Tools listed but every call is empty | The key belongs to a workspace with no data in the window. Widen `hours`. |
 | Assistant does not use the tools | Mention ZipLogger explicitly in the prompt, or confirm the server is connected in your client. |

@@ -3,6 +3,12 @@
 Anything that can POST JSON can ingest directly. Authentication is a per-workspace ingestion key
 (create one under **Settings → API keys**), sent as the `X-Api-Key` header.
 
+Keys are **ingest-only by default**, and that is the right kind for anything that runs where
+someone else could read it — a browser bundle, a mobile app, a shared CI log. An ingest key can
+send telemetry and nothing else; it cannot read your logs back through the MCP server or the
+Grafana datasource. Those need a key created with *Can read data* ticked, which you should treat
+like a password.
+
 Use this API when no SDK fits: a language without one, a database trigger, a CI step, an embedded
 device, or a shipper you configure by hand.
 
