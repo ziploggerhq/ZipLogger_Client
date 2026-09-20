@@ -62,6 +62,13 @@ const res = await fetch('/api/checkout', { method: 'POST', body })
 ziplogger.track('checkout_completed', { amount: 99 })   // requestId = that request's trace id
 ```
 
+The same requests also carry the user's **session id** as W3C `baggage` (`session.id=…`), and the
+browser-side span carries it as the OpenTelemetry `session.id` attribute. A backend on
+`ZipLogger.Metrics.AspNetCore` (or any OpenTelemetry SDK with a baggage span processor) copies it
+onto its own spans, which is what lets ZipLogger's **Investigate** view show everything a session
+did across services, not only the one request. Cross-origin APIs must allow the `baggage` header in
+CORS alongside `traceparent`. Pass `propagateSession: false` to send the trace id only.
+
 Inference uses the most recent instrumented fetch within `requestCorrelationTtlMs` (default 5 s,
 a constructor option; 0 disables it). An event with no recent request carries no `requestId` —
 one is never invented. To pin an event to a specific request yourself, pass its trace id (or the

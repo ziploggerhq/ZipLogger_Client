@@ -293,7 +293,14 @@ export class ZipLoggerBrowser {
    * Each instrumented request's trace id is also remembered as the most recent request, so a
    * `track()` call shortly after it carries that id as `requestId` (see `track`).
    *
-   * @param {{ propagateTo?: string[], logFailures?: boolean }} [options]
+   * The user's session id travels with each instrumented request as W3C `baggage`
+   * (`session.id=…`), and sits on the browser-side span as the OpenTelemetry `session.id`
+   * attribute. A backend using ZipLogger.Metrics.AspNetCore (or any OTel SDK with a baggage
+   * span processor) copies it onto its own spans, which is what lets ZipLogger show everything a
+   * session did across services. Servers must allow `baggage` in CORS the same way they allow
+   * `traceparent`. Pass `propagateSession: false` to keep sending only the trace id.
+   *
+   * @param {{ propagateTo?: string[], logFailures?: boolean, sendSpans?: boolean, serviceName?: string, propagateSession?: boolean }} [options]
    */
   instrumentFetch(options = {}) {
     if (!HAS_WINDOW || typeof window.fetch !== 'function') return () => {}
@@ -346,6 +353,8 @@ export class ZipLoggerBrowser {
       const spanId = randomHex(8)
       const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
       headers.set('traceparent', `00-${traceId}-${spanId}-01`)
+      if (self._sessionId && options.propagateSession !== false)
+        headers.set('baggage', `session.id=${encodeURIComponent(self._sessionId)}`)
       // The trace id is established here, before the request leaves; record it so events tracked
       // in the next few seconds link to this request. Concurrent fetches: the latest started wins.
       self._lastRequest = { traceId, at: Date.now() }
@@ -363,6 +372,7 @@ export class ZipLoggerBrowser {
           attributes: [
             { key: 'url.full', value: { stringValue: String(url) } },
             { key: 'http.request.method', value: { stringValue: method } },
+            ...(self._sessionId ? [{ key: 'session.id', value: { stringValue: self._sessionId } }] : []),
             ...(status ? [{ key: 'http.response.status_code', value: { intValue: String(status) } }] : []),
           ],
           ...(errorMessage || (status && status >= 400)

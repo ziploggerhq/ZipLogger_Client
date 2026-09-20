@@ -196,6 +196,13 @@ export declare class ZipLoggerBrowser {
     sendSpans?: boolean
     /** Service name for browser spans (default "<source>-browser"). */
     serviceName?: string
+    /**
+     * Send the session id as W3C `baggage` (`session.id=…`) beside `traceparent`, and on the
+     * browser span as the OpenTelemetry `session.id` attribute (default true). Lets ZipLogger
+     * connect every request of a session across services. Servers must allow the `baggage`
+     * header in CORS. Set false to propagate the trace id only.
+     */
+    propagateSession?: boolean
   }): () => void
   /** Send anything still buffered, logs and events both. keepalive=true during page unload. */
   flush(keepalive?: boolean): Promise<void>

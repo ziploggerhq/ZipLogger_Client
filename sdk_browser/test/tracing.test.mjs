@@ -37,7 +37,7 @@ beforeEach(async () => {
     })
   })
   api = http.createServer((req, res) => {
-    apiRequests.push({ path: req.url, traceparent: req.headers.traceparent })
+    apiRequests.push({ path: req.url, traceparent: req.headers.traceparent, baggage: req.headers.baggage })
     res.statusCode = req.url.includes('fail') ? 500 : 200
     res.end('{}')
   })
@@ -106,6 +106,39 @@ test('after the correlation TTL the request is no longer inferred', async () => 
   await c.flush()
 
   assert.equal(events().find((x) => x.name === 'viewed_later').requestId, undefined)
+  stop()
+  await c.close()
+})
+
+test('the session id rides along as W3C baggage, and on the browser span', async () => {
+  const c = makeClient({ sessionId: 'sess_abc' })
+  const stop = c.instrumentFetch({ propagateTo: [origin()] })
+
+  await fetch(`${origin()}/api/cart`)
+  await c.flush()
+  await new Promise((r) => setTimeout(r, 60))   // the span batch flushes on its own timer
+
+  assert.equal(apiRequests.length, 1)
+  assert.equal(apiRequests[0].baggage, 'session.id=sess_abc', 'the standard header, the standard key')
+  assert.match(apiRequests[0].traceparent, /^00-[0-9a-f]{32}-/, 'traceparent is still there beside it')
+
+  const spanBatch = requests.find((r) => r.path === '/v1/traces')
+  assert.ok(spanBatch, 'a browser span was exported')
+  const span = spanBatch.lines[0].resourceSpans[0].scopeSpans[0].spans[0]
+  const session = span.attributes.find((a) => a.key === 'session.id')
+  assert.equal(session?.value?.stringValue, 'sess_abc', 'the span carries session.id')
+  stop()
+  await c.close()
+})
+
+test('propagateSession: false keeps the request to traceparent only', async () => {
+  const c = makeClient({ sessionId: 'sess_abc' })
+  const stop = c.instrumentFetch({ propagateTo: [origin()], sendSpans: false, propagateSession: false })
+
+  await fetch(`${origin()}/api/cart`)
+
+  assert.equal(apiRequests[0].baggage, undefined)
+  assert.ok(apiRequests[0].traceparent)
   stop()
   await c.close()
 })
