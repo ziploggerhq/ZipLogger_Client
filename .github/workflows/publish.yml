@@ -98,8 +98,13 @@ jobs:
           skip-existing: true
 
 
+  # Taken off the shared 'v*' tag: RubyGems has no Trusted Publisher configured for this repo
+  # yet (rubygems.org account setup, not a code change -- see the 'v0.6.0' run's annotation:
+  # "No trusted publisher configured for this workflow found on https://rubygems.org"), so every
+  # shared release failed this job for a gem that was never going to publish. Re-add 'v*' once
+  # that one-time setup is done; until then a deliberate 'gem-v*' tag is how this gem ships.
   rubygems:
-    if: startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'gem-v')
+    if: startsWith(github.ref_name, 'gem-v')
     runs-on: ubuntu-latest
     environment: rubygems
     permissions:
