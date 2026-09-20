@@ -155,7 +155,10 @@ ziplogger.instrumentFetch({ propagateTo: ['https://api.yourcompany.com'] })
 ```
 
 This wraps `fetch`, adds a W3C `traceparent` header so your instrumented backend continues the
-same trace, exports a browser-side root span, and logs failed requests with the trace id. See the
+same trace, exports a browser-side root span, and logs failed requests with the trace id. It also
+carries the session id as W3C `baggage`, which a backend on `ZipLogger.Metrics.AspNetCore` (or any
+OpenTelemetry SDK with a baggage span processor) copies onto its own spans — so a session, not
+just one request, can be traced across services. See the
 [browser guide](browser.md#frontend-to-backend-tracing) for the details and the CORS requirement.
 
 ## What tracing unlocks
@@ -206,5 +209,6 @@ them.
 | `415` | Content type must be `application/x-protobuf` or `application/json`. |
 | Service shows as `unknown` | Set `OTEL_SERVICE_NAME` or the `service.name` resource attribute. |
 | Spans arrive but never nest | Context is not propagating. Confirm every hop passes `traceparent` and that your framework's instrumentation is registered. |
+| A session's other requests don't show up together | Confirm every hop passes `baggage`, not only `traceparent` — a proxy or CORS config that allows one and not the other breaks session propagation while the trace itself still works. |
 | Trace not found when opening a link | Error-free traces are pruned after your workspace's window (up to 30 days), so old links to healthy traces expire. |
 | Quota burning faster than before | Auto-instrumentation spans are metered as logs. Turn down the sampler. |

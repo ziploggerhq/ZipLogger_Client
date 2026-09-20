@@ -139,9 +139,16 @@ This wraps `window.fetch` so that every request to your own backend:
   your load balancer;
 - is logged automatically when it fails (HTTP 400 or above, or a network error), with the trace id
   in `fields.traceId`.
+- carries the user's **session id** as W3C `baggage` (`session.id=…`), and puts it on the
+  browser-side root span as the OpenTelemetry `session.id` attribute. A backend that copies
+  `baggage` onto its own spans (`ZipLogger.Metrics.AspNetCore` does this automatically; any
+  OpenTelemetry SDK with a baggage span processor works the same way) carries the session id on
+  to services it calls in turn — so a session can be followed across services, not just across
+  one request.
 
 The result: a user hits an error, and you go from that log line to the full browser → backend →
-database waterfall in one click. See [tracing](tracing.md).
+database waterfall in one click, and from there to everything else that session did. See
+[tracing](tracing.md).
 
 ### Options
 
@@ -151,6 +158,7 @@ database waterfall in one click. See [tracing](tracing.md).
 | `logFailures` | `true` | Log requests that fail with HTTP >= 400 or a network error |
 | `sendSpans` | `true` | Export the browser-side root span |
 | `serviceName` | `<source>-browser` | Service name for browser spans |
+| `propagateSession` | `true` | Send `session.id` as baggage and on the browser span. `false` propagates the trace id only |
 
 Returns a function that removes the instrumentation.
 
@@ -158,10 +166,10 @@ Returns a function that removes the instrumentation.
 
 - **Same-origin requests are traced by default.** Relative URLs and your own origin need no
   configuration.
-- **Cross-origin needs CORS.** Adding a header makes the request non-simple, so the target server
-  must allow `traceparent` in `Access-Control-Allow-Headers` (and answer the preflight). Without
-  that, requests to `propagateTo` origins will fail, so add the origin only once the server allows
-  the header.
+- **Cross-origin needs CORS.** Adding headers makes the request non-simple, so the target server
+  must allow **both** `traceparent` and `baggage` in `Access-Control-Allow-Headers` (and answer
+  the preflight). Without that, requests to `propagateTo` origins will fail, so add the origin
+  only once the server allows both headers.
 - **Telemetry shipping is never traced.** Requests to the ZipLogger origin itself are skipped, so
   you do not get spans about sending spans.
 - Browser spans are shipped as OTLP/JSON to `/v1/traces` with the same API key, batched on the same
