@@ -88,9 +88,14 @@ jobs:
         run: |
           python -m pip install --upgrade build
           python -m build
+      # Mirrors the npm job's own reasoning: one shared release tag ('v*') runs every
+      # registry's job even when only one SDK actually changed, and PyPI rejects a re-upload
+      # of a version it already has. skip-existing turns that rejection into a no-op instead
+      # of a red job for an SDK this release never touched.
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdk_python/dist
+          skip-existing: true
 
 
   rubygems:
@@ -131,7 +136,24 @@ jobs:
       - name: Test
         working-directory: sdk_java
         run: mvn -B -q test
+      # Maven Central releases are immutable and the publish plugin has no skip-existing flag,
+      # so -- same reasoning as npm and PyPI above -- check the public mirror before trying.
+      # A miss there can be sync lag rather than absence, but a hit is unambiguous: deploying
+      # again would only ever fail, so this is the one direction it is safe to shortcut on.
+      - name: Check whether this version is already on Maven Central
+        id: check
+        working-directory: sdk_java
+        run: |
+          version=$(mvn -B -q -Dexpression=project.version -DforceStdout help:evaluate)
+          url="https://repo1.maven.org/maven2/dev/ziplogger/ziplogger/$version/ziplogger-$version.pom"
+          if curl -sS -o /dev/null -w '%{http_code}' "$url" | grep -q '^200$'; then
+            echo "dev.ziplogger:ziplogger:$version is already on Maven Central — nothing to publish."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish to Maven Central
+        if: steps.check.outputs.exists != 'true'
         working-directory: sdk_java
         run: mvn -B -P release deploy
         env:
