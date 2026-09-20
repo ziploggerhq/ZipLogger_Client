@@ -24,7 +24,7 @@
  * says so once on the console; it never reaches your page or the rest of the SDK.
  */
 
-export const REPLAY_SDK_VERSION = '0.5.2'
+export const REPLAY_SDK_VERSION = '0.6.0'
 
 const HAS_WINDOW = typeof window !== 'undefined' && typeof document !== 'undefined'
 
