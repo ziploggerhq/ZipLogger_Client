@@ -18,17 +18,25 @@
     "./replay": {
       "types": "./index.d.ts",
       "default": "./replay.js"
+    },
+    "./rum": {
+      "types": "./rum.d.ts",
+      "default": "./rum.js"
     }
   },
   "sideEffects": false,
   "scripts": {
-    "test": "node --test test/client.test.mjs test/tracing.test.mjs test/replay.test.mjs"
+    "test": "node --test test/*.test.mjs"
   },
   "peerDependencies": {
-    "@rrweb/record": "^2.1.4"
+    "@rrweb/record": "^2.1.4",
+    "web-vitals": "^6.2.3"
   },
   "peerDependenciesMeta": {
     "@rrweb/record": {
+      "optional": true
+    },
+    "web-vitals": {
       "optional": true
     }
   },
@@ -59,6 +67,9 @@
     "index.d.ts",
     "index.js",
     "react.js",
-    "replay.js"
+    "replay.js",
+    "rum.js",
+    "rum-core.js",
+    "rum.d.ts"
   ]
 }

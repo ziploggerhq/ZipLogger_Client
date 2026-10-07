@@ -105,7 +105,7 @@ export class ZipLoggerBrowser {
   log(entry) {
     if (this._queue.length >= this._queueCapacity) { this.dropped++; return }
 
-    const fields = { environment: this._environment, ...entry.fields }
+    const fields = { environment: this._environment, ...this._rumLogContext?.(), ...entry.fields }
     if (this._includePageContext && HAS_WINDOW) {
       fields.url = window.location.href
       fields.userAgent = navigator.userAgent
@@ -165,12 +165,13 @@ export class ZipLoggerBrowser {
     if (this._events.length >= this._queueCapacity) { this.dropped++; return }
 
     const explicit = options && typeof options === 'object' ? options.requestId : undefined
-    const requestId = typeof explicit === 'string' && explicit.length > 0 ? explicit : this._recentRequestId()
+    const requestId = explicit === null ? undefined
+      : typeof explicit === 'string' && explicit.length > 0 ? explicit : this._recentRequestId()
 
     const event = {
       type: 'track',
       name,
-      timestamp: new Date().toISOString(),
+      timestamp: options?.timestamp ?? new Date().toISOString(),
       userId: this._userId ?? undefined,
       anonymousId: this._anonymousId ?? undefined,
       sessionId: this._sessionId ?? undefined,
@@ -179,10 +180,12 @@ export class ZipLoggerBrowser {
       release: this._release,
       commitSha: this._commitSha,
       // An idempotency key, so a retry after a timeout cannot count the same event twice.
-      insertId: randomHex(12),
+      insertId: options?.insertId ?? randomHex(12),
       properties: properties && typeof properties === 'object' ? properties : undefined,
     }
-    if (this._includePageContext && HAS_WINDOW) {
+    if (requestId) event.properties = { ...event.properties,
+      zlRequestRelation: typeof explicit === 'string' && explicit.length > 0 ? 'explicit' : 'recent_request' }
+    if (this._includePageContext && HAS_WINDOW && options?.includePageContext !== false) {
       event.url = window.location.href
       event.page = window.location.pathname
     }
@@ -222,6 +225,19 @@ export class ZipLoggerBrowser {
     })
     // Linking is what every later event depends on, so it does not wait for a full batch.
     this._scheduleEvents(0)
+  }
+
+  /** Explicit user submission. The boolean acknowledges queue admission, not delivery. */
+  submitFeedback(message, options = {}) {
+    if (options.hasConsent !== true || typeof message !== 'string') return false
+    const text = message.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 2000)
+    if (!text || this._events.length >= this._queueCapacity) return false
+    const issueId = typeof options.issueId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options.issueId)
+      ? options.issueId.toLowerCase() : undefined
+    this.track('user_feedback', { schema: 1, message: text, issueId, relationship: 'user_supplied' },
+      { requestId: options.requestId ?? null, includePageContext: false })
+    this._scheduleEvents(0)
+    return true // Queue admission, not a receipt from the server.
   }
 
   /** Forget the signed-in user, e.g. on sign-out. Later events are anonymous again. */
@@ -358,6 +374,7 @@ export class ZipLoggerBrowser {
       // The trace id is established here, before the request leaves; record it so events tracked
       // in the next few seconds link to this request. Concurrent fetches: the latest started wins.
       self._lastRequest = { traceId, at: Date.now() }
+      self._rumActivity?.()
 
       const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
       const path = String(url).replace(/^https?:\/\/[^/]+/, '') || '/'

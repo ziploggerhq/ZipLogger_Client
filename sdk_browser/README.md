@@ -2,7 +2,9 @@
 
 Browser SDK for [ZipLogger](https://ziplogger.ai) — product-analytics events,
 uncaught errors, unhandled promise rejections and distributed tracing from web apps, with a
-first-class React error boundary. Zero dependencies.
+first-class React error boundary. Core collection has zero dependencies. Optional
+consented [RUM and feedback](../docs/rum.md) collection is implemented locally;
+the new RUM entry requires `web-vitals` and is not yet published.
 
 ```bash
 npm install @ziplogger/browser

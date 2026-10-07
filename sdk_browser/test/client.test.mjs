@@ -59,6 +59,20 @@ test('batches NDJSON with api key and defaults', async () => {
   assert.equal(first.fields.environment, 'production')
 })
 
+test('feedback requires explicit consent, has session identity and never infers a recent request', async () => {
+  const client = makeClient({ sessionId: 'feedback-session', release: 'feedback-release' })
+  client._lastRequest = { traceId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', at: Date.now() }
+  assert.equal(client.submitFeedback('Please help', { hasConsent: false }), false)
+  assert.equal(client.submitFeedback('  Checkout did not finish  ', { hasConsent: true,
+    issueId: 'DA79B670-BD78-4A56-AF25-1893EFC05257' }), true)
+  await client.close()
+  const entry = requests[0].lines[0]
+  assert.equal(entry.name, 'user_feedback'); assert.equal(entry.sessionId, 'feedback-session')
+  assert.equal(entry.requestId, undefined); assert.equal(entry.url, undefined)
+  assert.equal(entry.properties.issueId, 'da79b670-bd78-4a56-af25-1893efc05257')
+  assert.equal(entry.properties.message, 'Checkout did not finish')
+})
+
 test('captureError maps stack and fields', async () => {
   const client = makeClient()
   client.captureError(new RangeError('too far'), { step: 'checkout' })

@@ -181,6 +181,42 @@ test('the core controller is inert and typed the same before attach', () => {
   assert.ok(client.sessionReplay.start() instanceof Promise)
 })
 
+test('consent revocation discards buffered recording without a final upload', async () => {
+  const rec = fakeRecorder()
+  const controller = attach(makeClient({ enabled: true, flushIntervalMs: 60000 }), { loadRecorder: rec.load, compress: null })
+  await controller.start()
+  assert.ok(controller._buffer.length > 0)
+  await controller.stop({ discard: true })
+  assert.equal(controller.isRecording(), false); assert.equal(rec.stopped, 1)
+  assert.equal(controller._buffer.length, 0); assert.equal(controller._pending.length, 0)
+  assert.equal(chunks.length, 0)
+})
+
+test('regrant cannot retry discarded in-flight data or remove a newly queued recording', async () => {
+  const rec = fakeRecorder(), sent = []
+  let finishOld
+  const controller = attach(makeClient({ enabled: true, flushIntervalMs: 60000 }), {
+    loadRecorder: rec.load, compress: null,
+    fetch: async (url, init) => {
+      if (url.endsWith('/config')) return { ok: true, status: 200, json: async () => ({ enabled: true }) }
+      sent.push(JSON.parse(init.body))
+      if (sent.length === 1) return new Promise(resolve => { finishOld = resolve })
+      return { ok: true, status: 202 }
+    },
+  })
+  await controller.start(); controller._flush(false)
+  await waitFor(() => finishOld)
+  const stopping = controller.stop({ discard: true })
+  await controller.start(); controller._flush(false)
+  finishOld({ ok: false, status: 500, headers: { get: () => null } })
+  await stopping; await controller._uploading
+  assert.equal(sent.length, 2)
+  assert.equal(sent[0].sequence, 0); assert.equal(sent[1].sequence, 1)
+  assert.equal(controller._pending.length, 0)
+  assert.equal(controller.isRecording(), true)
+  await controller.stop({ discard: true })
+})
+
 test('asks the server first and records nothing when it says enabled:false', async () => {
   configResponses = [{ enabled: false, reason: 'replay_not_in_plan' }]
   const rec = fakeRecorder()

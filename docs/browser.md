@@ -2,7 +2,8 @@
 
 Capture uncaught errors, unhandled promise rejections, custom events, and failed network requests
 from web apps, with a first-class React error boundary and optional frontend-to-backend tracing.
-Zero dependencies.
+Core collection has zero dependencies. Optional consented Web Vitals and feedback
+are described in [RUM](rum.md); the RUM entry requires `web-vitals`.
 
 ```bash
 npm install @ziplogger/browser

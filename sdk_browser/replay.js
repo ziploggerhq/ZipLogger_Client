@@ -155,6 +155,8 @@ export class SessionReplayController {
     // Set by stop() so a start that is still awaiting the config request or the recorder download
     // does not go on to begin recording after the caller has already said not to.
     this._cancelled = false
+    this._discardPending = false
+    this._discardEpoch = 0
     this._stopRecorder = null
     this._recorder = null
     this._sessionId = null
@@ -198,6 +200,7 @@ export class SessionReplayController {
     if (this._starting) return this._starting
     if (!HAS_WINDOW) { this.lastReason = 'no_window'; return Promise.resolve() }
     this._cancelled = false
+    this._discardPending = false
     this._starting = this._startInner()
       .catch((err) => this._fail('could not start', err))
       .finally(() => { this._starting = null })
@@ -211,10 +214,15 @@ export class SessionReplayController {
    * has to cancel a start that has not finished yet. Without that, code which starts on mount and
    * stops on an immediate route change would go on recording the page it was told to leave alone.
    */
-  stop() {
+  stop(options = {}) {
     this._cancelled = true
-    if (this._recording) this._finish('stopped')
+    if (options.discard === true) { this._discardPending = true; this._discardEpoch++ }
+    if (this._recording) this._finish('stopped', options.discard === true)
     else this.lastReason = 'stopped'
+    if (options.discard === true) {
+      if (this._timer !== null) { clearTimeout(this._timer); this._timer = null }
+      this._buffer = []; this._bufferBytes = 0; this._pending = []
+    }
     return this._uploading
   }
 
@@ -411,7 +419,7 @@ export class SessionReplayController {
 
     const seq = this._seq++
     this._writeState({ sid: this._sessionId, sampled: true, seq: this._seq })
-    this._pending.push({ seq, events, final, urgent })
+    this._pending.push({ seq, events, final, urgent, epoch: this._discardEpoch })
     this._uploading = this._uploading.then(() => this._drain()).catch(() => {})
   }
 
@@ -419,7 +427,9 @@ export class SessionReplayController {
     while (this._pending.length > 0) {
       const chunk = this._pending[0]
       const ok = await this._upload(chunk)
-      this._pending.shift()
+      // Revocation can clear this queue while a request is in flight, then a new
+      // recording can enqueue data. Never remove that new chunk on the old one's return.
+      if (this._pending[0] === chunk) this._pending.shift()
       if (!ok) this.dropped += chunk.events.length
     }
   }
@@ -451,6 +461,7 @@ export class SessionReplayController {
    * sessionStorage); this tab stops rather than fight over the sequence.
    */
   async _upload(chunk) {
+    if (this._discardPending || chunk.epoch !== this._discardEpoch) return false
     const text = this._payload(chunk)
     let body = text
     if (this._compress) {
@@ -465,9 +476,11 @@ export class SessionReplayController {
     const keepalive = (chunk.final || chunk.urgent) && size <= 60_000
 
     for (let attempt = 0; ; attempt++) {
+      if (this._discardPending || chunk.epoch !== this._discardEpoch) return false
       let retryAfterMs = null
       try {
         const response = await this._fetch(this._url, { method: 'POST', headers, body, keepalive })
+        if (chunk.epoch !== this._discardEpoch) return false
         if (response.ok) { this._bytesSent += size; return true }
         if (response.status === 409) { this._finish('sequence_conflict'); return false }
         if (response.status === 403) { this._finish('disabled'); return false }
@@ -485,7 +498,7 @@ export class SessionReplayController {
 
   // ---- lifecycle ------------------------------------------------------------------------------
 
-  _finish(reason) {
+  _finish(reason, discard = false) {
     this.lastReason = reason
     if (!this._recording && !this._stopRecorder) return
     this._recording = false
@@ -497,8 +510,7 @@ export class SessionReplayController {
     for (const detach of this._detach.splice(0)) detach()
     if (this._unwrapLog) { this._unwrapLog(); this._unwrapLog = null }
     // The final chunk is never empty: a marker says why the recording ended.
-    this._custom('ziplogger.stop', { reason })
-    this._flush(true)
+    if (!discard) { this._custom('ziplogger.stop', { reason }); this._flush(true) }
   }
 
   _fail(what, err) {

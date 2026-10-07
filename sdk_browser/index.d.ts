@@ -63,7 +63,7 @@ export interface SessionReplayController {
   /** Start recording this session if the server and the sampling decision allow it. Idempotent. */
   start(): Promise<void>
   /** Stop recording and send what is buffered as the final chunk. */
-  stop(): Promise<void>
+  stop(options?: { discard?: boolean }): Promise<void>
   isRecording(): boolean
   /** Events lost to upload failures or backlog. */
   readonly dropped: number
@@ -122,7 +122,13 @@ export interface TrackOptions {
    * value. Overrides the id inferred from the most recent instrumented fetch. ZipLogger uses it to
    * correlate the event with the logs and traces of that request.
    */
-  requestId?: string
+  requestId?: string | null
+  /** Stable event identity for an update/retry. Reuse only for the same observation. */
+  insertId?: string
+  /** ISO timestamp; keep stable across updates of one observation. */
+  timestamp?: string
+  /** Disable automatic raw page URL/path collection for this event. */
+  includePageContext?: boolean
 }
 
 export interface BrowserLogEntry {
@@ -159,6 +165,8 @@ export declare class ZipLoggerBrowser {
   log(entry: BrowserLogEntry): void
   /** Report a caught error with optional context fields. */
   captureError(error: unknown, fields?: Record<string, unknown>): void
+  /** Queue explicit user feedback (up to 2000 chars); returns queue admission, not server delivery. */
+  submitFeedback(message: string, options: { hasConsent: boolean; issueId?: string; requestId?: string }): boolean
   /** Capture window error / unhandledrejection events. Returns a stop function. */
   captureGlobalErrors(): () => void
   /**
