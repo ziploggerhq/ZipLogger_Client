@@ -143,3 +143,10 @@ See [docs/session-replay.md](https://github.com/ziploggerhq/ZipLogger_Client/blo
 - Browser API keys are visible to users by design (like every client-side telemetry key). Use a
   dedicated key so it can be revoked independently, and rely on your plan's rate limits.
 - Batching defaults are browser-tuned: 20 events/request, 3s linger, 2 retries, 1,000-event buffer.
+
+## Release health
+
+With a `release` set, the SDK reports one release-health session per page load to ZipLogger (Issues → Releases shows
+crash-free sessions and users per release). The first error logged at `error`/`fatal` marks the session errored;
+with `captureGlobalErrors()` an uncaught error or unhandled rejection marks it crashed; leaving the page reports the
+exit. Pass `trackSessions: false` to turn it off. `client.sessionStatus` shows the current state.

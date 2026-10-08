@@ -32,6 +32,7 @@ export class ZipLoggerBrowser {
     // Events are a different endpoint with a different payload, so they get their own URL and
     // queue rather than being squeezed through the log pipeline.
     this._eventsUrl = trimmed.replace(/\/ingest\/v1\/logs$/i, '') + '/ingest/v1/events'
+    this._sessionsUrl = trimmed.replace(/\/ingest\/v1\/logs$/i, '') + '/ingest/v1/sessions'
     this._apiKey = options.apiKey
     this._source = options.source || (HAS_WINDOW ? window.location.hostname : 'browser')
     this._release = options.release
@@ -88,8 +89,16 @@ export class ZipLoggerBrowser {
       isRecording: () => false,
     }
 
+    // Release health: one session per page load, reported at start, at its first error, and when the page is
+    // left (exited) or an uncaught error ends it (crashed). On by default when a release is set.
+    this._session = null
+    if (HAS_WINDOW && this._release && options.trackSessions !== false) {
+      this._session = { sid: randomHex(16), started: new Date().toISOString(), status: 'ok', errors: 0 }
+      this._sendSession(false)
+    }
+
     if (HAS_WINDOW) {
-      const onHide = () => { void this.flush(true) }
+      const onHide = () => { this._endSession(); void this.flush(true) }
       window.addEventListener('pagehide', onHide)
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') onHide()
@@ -103,6 +112,7 @@ export class ZipLoggerBrowser {
    * @param {import('./index').BrowserLogEntry} entry
    */
   log(entry) {
+    if (entry && (entry.severity === 'error' || entry.severity === 'fatal')) this._sessionError()
     if (this._queue.length >= this._queueCapacity) { this.dropped++; return }
 
     const fields = { environment: this._environment, ...this._rumLogContext?.(), ...entry.fields }
@@ -268,6 +278,7 @@ export class ZipLoggerBrowser {
   captureGlobalErrors() {
     if (!HAS_WINDOW) return () => {}
     const onError = (event) => {
+      this._sessionCrash()
       this.log({
         severity: 'error',
         message: event.message || 'Uncaught error',
@@ -276,6 +287,7 @@ export class ZipLoggerBrowser {
       })
     }
     const onRejection = (event) => {
+      this._sessionCrash()
       const reason = event.reason
       this.log({
         severity: 'error',
@@ -546,6 +558,47 @@ export class ZipLoggerBrowser {
     this._sending = this._sending.then(() => this._drain(keepalive)).catch(() => {})
     this._eventSending = this._eventSending.then(() => this._drainEvents(keepalive)).catch(() => {})
     await Promise.all([this._sending, this._eventSending])
+  }
+
+  /** This page's release-health session status (ok, exited, crashed), or null when not tracked. */
+  get sessionStatus() { return this._session ? this._session.status : null }
+
+  _sessionError() {
+    const s = this._session
+    if (!s || s.status !== 'ok') return
+    s.errors++
+    if (s.errors === 1) this._sendSession(false)
+  }
+
+  _sessionCrash() {
+    const s = this._session
+    if (!s || s.status !== 'ok') return
+    s.status = 'crashed'
+    s.errors = Math.max(1, s.errors)
+    this._sendSession(true)
+  }
+
+  _endSession() {
+    const s = this._session
+    if (!s || s.status !== 'ok') return
+    s.status = 'exited'
+    this._sendSession(true)
+  }
+
+  /** One update; the server keeps the latest per session id. Best effort, never throws, never retried. */
+  _sendSession(keepalive) {
+    const s = this._session
+    const update = {
+      sid: s.sid, did: this._userId ?? this._anonymousId ?? undefined, started: s.started, timestamp: new Date().toISOString(),
+      status: s.status, errors: s.errors, attrs: { release: this._release, environment: this._environment },
+    }
+    try {
+      const sent = fetch(this._sessionsUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': this._apiKey },
+        body: JSON.stringify([update]), keepalive,
+      })
+      if (sent && typeof sent.catch === 'function') sent.catch(() => {})
+    } catch { /* release health is best effort */ }
   }
 
   /** Flush and detach all global listeners. */

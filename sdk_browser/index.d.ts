@@ -82,6 +82,11 @@ export interface BrowserOptions {
   /** Source name. Default: window.location.hostname. */
   source?: string
   release?: string
+  /**
+   * Release health (crash-free sessions per release): one session per page load, reported at start, at its first
+   * error, and when the page is left or an uncaught error ends it. Default true when `release` is set.
+   */
+  trackSessions?: boolean
   commitSha?: string
   /** Default "production". */
   environment?: string
@@ -161,6 +166,8 @@ export declare class ZipLoggerBrowser {
    * `@ziplogger/browser/replay` has run; after that, the live controller.
    */
   sessionReplay: SessionReplayController
+  /** This page's release-health session status (ok, exited, crashed), or null when not tracked. */
+  readonly sessionStatus: 'ok' | 'exited' | 'crashed' | null
   /** Queue an event for background delivery. Never blocks, never throws. */
   log(entry: BrowserLogEntry): void
   /** Report a caught error with optional context fields. */
