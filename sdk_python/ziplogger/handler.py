@@ -25,6 +25,8 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from .session import ReleaseSession
+
 # LogRecord attributes that are internal to the logging module — everything else
 # passed via `extra=` becomes a searchable ZipLogger field.
 _RESERVED = frozenset(
@@ -63,6 +65,8 @@ class ZipLoggerHandler(logging.Handler):
         retry_max_delay: float = 30.0,
         timeout: float = 10.0,
         level: int = logging.NOTSET,
+        track_sessions: bool = True,
+        session_distinct_id: Optional[str] = None,
     ) -> None:
         super().__init__(level)
         if not endpoint:
@@ -103,6 +107,19 @@ class ZipLoggerHandler(logging.Handler):
         self._worker = threading.Thread(target=self._pump, name="ziplogger-shipper", daemon=True)
         self._worker.start()
 
+        # Release health: one session per process when a release is known (see session.py).
+        base = trimmed[: -len("/ingest/v1/logs")] if trimmed.endswith("/ingest/v1/logs") else trimmed
+        self._session = (
+            ReleaseSession(base + "/ingest/v1/sessions", api_key, self._release, self._environment, session_distinct_id, timeout)
+            if track_sessions and self._release
+            else None
+        )
+
+    @property
+    def session_status(self) -> Optional[str]:
+        """This process's release-health session status ("ok", "exited", "crashed"), or None when not tracked."""
+        return self._session.status if self._session else None
+
     # ------------------------------------------------------------------ emit
 
     def emit(self, record: logging.LogRecord) -> None:  # never blocks, never raises
@@ -115,6 +132,8 @@ class ZipLoggerHandler(logging.Handler):
             self._queue.put_nowait(entry)
         except queue.Full:
             self.dropped += 1
+        if record.levelno >= logging.ERROR and self._session:
+            self._session.error()
 
     def _to_entry(self, record: logging.LogRecord) -> dict:
         fields: Dict[str, Any] = {"category": record.name}
@@ -223,6 +242,8 @@ class ZipLoggerHandler(logging.Handler):
             except queue.Full:
                 pass
             self._worker.join(timeout=5.0)
+            if self._session:
+                self._session.end()
         super().close()
 
 

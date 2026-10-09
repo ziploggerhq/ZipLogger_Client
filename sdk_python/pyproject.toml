@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ziplogger"
-version = "0.4.0"
+version = "0.5.0"
 description = "Python logging handler for ZipLogger: batching, retries, backpressure, and automatic enrichment. Standard library only."
 readme = "README.md"
 requires-python = ">=3.9"

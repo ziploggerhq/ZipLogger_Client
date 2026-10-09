@@ -14,6 +14,7 @@
 
 const os = require('node:os')
 const path = require('node:path')
+const { ReleaseSession } = require('./session.js')
 
 const SEVERITIES = new Set(['debug', 'info', 'warn', 'error', 'fatal'])
 
@@ -49,7 +50,18 @@ class ZipLoggerClient {
     this._timer = null
     this._sending = Promise.resolve()
     this._closed = false
+
+    // Release health: one session per process when a release is known (see session.js). trackSessions: false turns it off.
+    this._session = options.trackSessions !== false && this._release
+      ? new ReleaseSession({
+        url: trimmed.replace(/\/ingest\/v1\/logs$/i, '') + '/ingest/v1/sessions', apiKey: this._apiKey,
+        release: String(this._release), environment: this._environment, distinctId: options.sessionDistinctId, timeoutMs: this._timeout,
+      })
+      : null
   }
+
+  /** This process's release-health session status (ok, exited, crashed), or null when not tracked. */
+  get sessionStatus() { return this._session ? this._session.status : null }
 
   /**
    * Queue one entry for background delivery. Never blocks, never throws.
@@ -79,6 +91,7 @@ class ZipLoggerClient {
     delete record.error
 
     this._queue.push(record)
+    if (record.severity === 'error' || record.severity === 'fatal') this._session?.error()
     if (this._queue.length >= this._batchSize) this._kick(0)
     else this._kick(this._flushInterval)
   }
@@ -146,7 +159,7 @@ class ZipLoggerClient {
   /** Flush (bounded) and stop accepting entries. */
   async close(timeoutMs = 5_000) {
     this._closed = true
-    await Promise.race([this.flush(), sleep(timeoutMs)])
+    await Promise.race([Promise.all([this.flush(), this._session?.end()]), sleep(timeoutMs)])
   }
 }
 

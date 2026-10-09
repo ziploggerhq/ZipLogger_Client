@@ -59,3 +59,20 @@ drop with a counter (`client.dropped`) when the queue overflows or retries exhau
 `unref`ed — the SDK never keeps your process alive. Every entry is enriched with
 `environment`, `machineName`, `release` (nearest package.json), and `commitSha`
 (`GIT_COMMIT`/`COMMIT_SHA` env vars) — the inputs to ZipLogger's git regression detection.
+
+## Release health
+
+When a release is known (option, `ZIPLOGGER_RELEASE`, or the nearest package.json version), the client reports one
+session per process to `/ingest/v1/sessions`: when it starts, at its first error-level log, when it ends normally
+(`close()`, or the event loop draining) and as **crashed** when an uncaught exception or unhandled rejection is about
+to end the process. The crash update is sent synchronously by a short-lived child process (at most 3 seconds) through
+`uncaughtExceptionMonitor`, so how your process crashes does not change. ZipLogger shows crash-free sessions per release
+under Issues → Releases.
+
+```js
+const zl = new ZipLoggerClient({ endpoint, apiKey, release: 'api@2.4.0', sessionDistinctId: tenantId })
+zl.sessionStatus   // 'ok', later 'exited' or 'crashed'
+```
+
+`sessionDistinctId` (optional) counts crash-free users. `trackSessions: false` turns sessions off. A process ended with
+`process.exit()` keeps its last status (not crashed).

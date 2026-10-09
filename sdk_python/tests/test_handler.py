@@ -60,7 +60,7 @@ class _Server:
 
 
 def make_handler(server, **kw):
-    defaults = dict(flush_interval=0.05, retry_base_delay=0.01)
+    defaults = dict(flush_interval=0.05, retry_base_delay=0.01, track_sessions=False)
     defaults.update(kw)
     return ZipLoggerHandler(endpoint=server.url(), api_key="zk_test", **defaults)
 

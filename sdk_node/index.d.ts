@@ -27,6 +27,13 @@ export interface ZipLoggerOptions {
   retryMaxDelayMs?: number
   /** Per-request HTTP timeout. Default 10000. */
   timeoutMs?: number
+  /**
+   * Release health: one session per process (start, first error, exit, crash) sent to /ingest/v1/sessions when a
+   * release is known. A crash is reported synchronously by a short-lived child process (at most 3 s). Default true.
+   */
+  trackSessions?: boolean
+  /** Who the session belongs to, for crash-free users (e.g. a user or tenant id). Default: none. */
+  sessionDistinctId?: string
 }
 
 export interface LogEntry {
@@ -51,8 +58,10 @@ export declare class ZipLoggerClient {
   log(entry: LogEntry): void
   /** Send anything still buffered. */
   flush(): Promise<void>
-  /** Flush (bounded by timeoutMs) and stop accepting entries. */
+  /** Flush (bounded by timeoutMs), end the release-health session and stop accepting entries. */
   close(timeoutMs?: number): Promise<void>
+  /** This process's release-health session status ('ok', 'exited', 'crashed'), or null when not tracked. */
+  readonly sessionStatus: 'ok' | 'exited' | 'crashed' | null
 }
 
 export declare function mapLevel(level: string | number): Severity

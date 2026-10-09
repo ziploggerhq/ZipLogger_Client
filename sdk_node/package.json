@@ -1,6 +1,6 @@
 {
   "name": "ziplogger",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "ZipLogger Node.js SDK \u2014 core client plus Pino and Winston transports. Batching, retries, backpressure, automatic enrichment.",
   "license": "MIT",
   "main": "index.js",
@@ -23,7 +23,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/client.test.mjs"
+    "test": "node --test test/client.test.mjs test/sessions.test.mjs"
   },
   "keywords": [
     "ziplogger",
@@ -58,6 +58,7 @@
     "README.md",
     "index.d.ts",
     "index.js",
+    "session.js",
     "pino.js",
     "winston.js"
   ]

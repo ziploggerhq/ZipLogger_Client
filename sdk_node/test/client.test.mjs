@@ -40,6 +40,7 @@ function makeClient(overrides = {}) {
     apiKey: 'zk_test',
     flushIntervalMs: 30,
     retryBaseDelayMs: 10,
+    trackSessions: false, // sessions have their own tests (sessions.test.mjs)
     ...overrides,
   })
 }
