@@ -1,7 +1,7 @@
 {
   "name": "@ziplogger/browser",
-  "version": "0.7.0",
-  "description": "ZipLogger browser SDK \u2014 product-analytics events, console errors, unhandled rejections, distributed tracing and session replay from web apps, with a React error boundary. Zero dependencies.",
+  "version": "0.8.0",
+  "description": "ZipLogger browser SDK \u2014 product-analytics events, console errors, unhandled rejections, distributed tracing, session replay and real-user monitoring (Web Vitals, page loads, fetch timings) from web apps, with a React error boundary. Zero dependencies.",
   "license": "MIT",
   "type": "module",
   "main": "index.js",
@@ -50,7 +50,9 @@
     "error-tracking",
     "opentelemetry",
     "session-replay",
-    "rrweb"
+    "rrweb",
+    "rum",
+    "web-vitals"
   ],
   "repository": {
     "type": "git",

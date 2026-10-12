@@ -3,8 +3,9 @@
 Browser SDK for [ZipLogger](https://ziplogger.ai) — product-analytics events,
 uncaught errors, unhandled promise rejections and distributed tracing from web apps, with a
 first-class React error boundary. Core collection has zero dependencies. Optional
-consented [RUM and feedback](../docs/rum.md) collection is implemented locally;
-the new RUM entry requires `web-vitals` and is not yet published.
+consented [RUM and feedback](../docs/rum.md) collection (`@ziplogger/browser/rum`, needs the
+`web-vitals` peer): Core Web Vitals plus FCP and TTFB, page-load phases, fetch/XHR timings linked to
+backend traces, the slowest page-load assets and main-thread long tasks.
 
 ```bash
 npm install @ziplogger/browser

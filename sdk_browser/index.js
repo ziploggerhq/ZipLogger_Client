@@ -389,9 +389,20 @@ export class ZipLoggerBrowser {
       self._rumActivity?.()
 
       const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
+      // For RUM (attachRum): the browser's resource entry for this request finds its trace id and method here.
+      let traced = null
+      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        let absolute = String(url)
+        try { absolute = new URL(String(url), window.location.href).href } catch { /* keep as given */ }
+        traced = { url: absolute, start: performance.now(), traceId, method, status: undefined }
+        const log = (self._rumRequestLog ??= [])
+        log.push(traced)
+        if (log.length > 200) log.splice(0, log.length - 200)
+      }
       const path = String(url).replace(/^https?:\/\/[^/]+/, '') || '/'
       const startNs = String(BigInt(Date.now()) * 1000000n)
       const finish = (status, errorMessage) => {
+        if (traced) traced.status = status ?? 0
         enqueueSpan({
           traceId, spanId,
           name: `${method} ${path.split('?')[0]}`,
