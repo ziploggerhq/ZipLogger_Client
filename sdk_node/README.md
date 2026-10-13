@@ -76,3 +76,21 @@ zl.sessionStatus   // 'ok', later 'exited' or 'crashed'
 
 `sessionDistinctId` (optional) counts crash-free users. `trackSessions: false` turns sessions off. A process ended with
 `process.exit()` keeps its last status (not crashed).
+
+## The `ziplogger` CLI: releases, deploys and source maps from CI
+
+The package includes a command line for CI (0.6.0 and later). It needs a key with the **CI: releases and source maps**
+permission (Settings → API keys), created in the environment you deploy to.
+
+```bash
+export ZIPLOGGER_API_KEY=zk_...      # a CI secret
+VERSION="web@$(git rev-parse --short HEAD)"
+npx ziplogger releases new "$VERSION" --service web        # commit + commits since the previous release
+npx ziplogger sourcemaps upload ./dist --release "$VERSION" --url-prefix "~/assets/"
+npx ziplogger releases finalize "$VERSION" --service web
+npx ziplogger releases deploy "$VERSION" --service web --name "deploy #42"
+```
+
+`releases new` sends `git rev-parse HEAD` and `git log <previous release's commit>..HEAD`. In a shallow clone it
+sends only the commit and ZipLogger reads the range from the connected GitHub or GitLab repository. `ziplogger --help`
+lists every option; [docs/releases.md](../docs/releases.md) has the details.

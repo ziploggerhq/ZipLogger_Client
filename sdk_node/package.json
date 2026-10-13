@@ -1,10 +1,13 @@
 {
   "name": "ziplogger",
-  "version": "0.5.0",
-  "description": "ZipLogger Node.js SDK \u2014 core client plus Pino and Winston transports. Batching, retries, backpressure, automatic enrichment.",
+  "version": "0.6.0",
+  "description": "ZipLogger Node.js SDK \u2014 core client plus Pino and Winston transports, and the ziplogger CLI for releases, deploys and source maps from CI.",
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
+  "bin": {
+    "ziplogger": "cli.js"
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
@@ -23,14 +26,17 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/client.test.mjs test/sessions.test.mjs"
+    "test": "node --test test/client.test.mjs test/sessions.test.mjs test/cli.test.mjs"
   },
   "keywords": [
     "ziplogger",
     "logging",
     "pino",
     "winston",
-    "observability"
+    "observability",
+    "releases",
+    "sourcemaps",
+    "cli"
   ],
   "repository": {
     "type": "git",
@@ -60,6 +66,8 @@
     "index.js",
     "session.js",
     "pino.js",
-    "winston.js"
+    "winston.js",
+    "cli.js",
+    "cli-core.js"
   ]
 }

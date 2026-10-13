@@ -50,6 +50,7 @@ Your log is searchable within seconds.
 |---|---|
 | [Distributed tracing](docs/tracing.md) | OTLP/HTTP `/v1/traces`, span mapping, browser-to-backend traces, trace/log correlation |
 | [Product analytics (Events)](docs/events.md) | `Track()`/`Identify()`, sessions, the `/ingest/v1/events` endpoint, and error-to-journey correlation |
+| [Releases and deploys](docs/releases.md) | The `ziplogger` CLI in CI: releases with their commits, deploys, and source-map uploads |
 | [Session replay](docs/session-replay.md) | Watch what a user did before an error: DOM recording, masking rules, sampling, retention, and what it costs the page |
 | [Migrate from Mixpanel](docs/migrate-from-mixpanel.md) | Point an existing Mixpanel SDK at ZipLogger: endpoint, token, identity mapping, historical import |
 | [Request metrics (APM)](docs/metrics.md) | ASP.NET Core middleware, custom metrics, and the `/ingest/v1/metrics` endpoint for any stack |
